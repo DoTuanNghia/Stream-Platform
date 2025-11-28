@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -23,7 +24,7 @@ public class Channel {
     @Column(nullable = false, length = 255)
     private String name;
 
-    @Column(name = "channelCode", nullable = false, length = 255)
+    @Column(name = "channel_code", nullable = false, length = 255)
     private String channelCode;
 
     // 1 User có N Channel
