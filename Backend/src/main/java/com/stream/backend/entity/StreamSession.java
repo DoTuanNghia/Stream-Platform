@@ -1,5 +1,7 @@
 package com.stream.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -25,10 +27,12 @@ public class StreamSession {
     // 1 Device có N StreamSession
     @ManyToOne
     @JoinColumn(name = "device_id", nullable = false)
+    @JsonIgnore
     private Device device;
 
     // 1 Stream có 1 StreamSession (stream_id UNIQUE)
     @OneToOne
     @JoinColumn(name = "stream_id", nullable = false, unique = true)
+    @JsonIgnore
     private Stream stream;
 }
