@@ -16,7 +16,13 @@ public class ChannelServiceImpl implements ChannelService{
         this.channelRepository = channelRepository;
     }
 
+    @Override
     public List<Channel> getAllChannels(){
         return channelRepository.findAll();
+    }
+
+    @Override
+    public List<Channel> getChannelsByUserId(Integer userId){
+        return channelRepository.findByUserId(userId);
     }
 }
