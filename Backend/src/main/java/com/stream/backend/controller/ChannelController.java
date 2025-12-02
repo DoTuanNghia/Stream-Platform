@@ -3,6 +3,7 @@ package com.stream.backend.controller;
 import java.util.*;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,7 @@ import com.stream.backend.service.ChannelService;
 
 @RestController
 @RequestMapping("/api/channels")
+@CrossOrigin(origins = "http://localhost:5173")
 public class ChannelController {
     private final ChannelService channelService;
 
@@ -22,7 +24,7 @@ public class ChannelController {
         this.channelService = channelService;
     }
 
-    @GetMapping("/")
+    @GetMapping("")
     public ResponseEntity<Map<String, Object>> getAllChannels() {
         var channels = channelService.getAllChannels();
 

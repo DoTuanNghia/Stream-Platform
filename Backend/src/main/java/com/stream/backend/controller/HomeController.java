@@ -8,10 +8,12 @@ import com.stream.backend.service.ChannelService;
 import java.util.*;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/")
+@CrossOrigin(origins = "http://localhost:5173")
 public class HomeController {
 
     private final ChannelService channelService;
