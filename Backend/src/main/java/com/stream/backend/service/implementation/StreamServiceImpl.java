@@ -31,4 +31,9 @@ public class StreamServiceImpl implements StreamService{
         stream.setChannel(channel);
         return streamRepository.save(stream);
     }
+
+    @Override
+    public void deleteStream(Stream stream){
+        streamRepository.delete(stream);
+    }
 }
