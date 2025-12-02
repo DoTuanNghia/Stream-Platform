@@ -34,11 +34,16 @@ public class ChannelServiceImpl implements ChannelService {
     public Channel createChannel(Integer userId, Channel channel) {
         User user = userRepository.findById(userId)
                 .orElse(null);
-        if (user == null) {
-            throw new RuntimeException("User not found with id: " + userId);
-        }
+
         channel.setUser(user);
 
         return channelRepository.save(channel);
+    }
+
+    @Override
+    public void deleteChannel(Integer channelId) {
+        Channel channel = channelRepository.findById(channelId)
+                .orElse(null);
+        channelRepository.delete(channel);
     }
 }
