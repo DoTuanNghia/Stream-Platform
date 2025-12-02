@@ -1,21 +1,20 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import { Routes } from 'react-router-dom'
+// src/App.jsx
+import { Routes, Route, Link } from "react-router-dom";
 
-function App() {
-  const [count, setCount] = useState(0)
+import Home from "./pages/home/home.jsx";
+import Login from "./pages/login/Login.jsx";
 
+export default function App() {
   return (
-    <>
+    <div style={{ padding: 20 }}>
+
+      {/* Khu vực render page */}
       <Routes>
-        <Route>
-          
-        </Route>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
       </Routes>
-    </>
-  )
+    </div>
+  );
 }
 
-export default App
+

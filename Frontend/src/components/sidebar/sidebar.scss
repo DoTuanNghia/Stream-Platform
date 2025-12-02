@@ -1,0 +1,62 @@
+// src/components/Sidebar/Sidebar.scss
+.sidebar {
+  width: 240px;
+  background: #020617;
+  border-right: 1px solid #1f2937;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar__section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  padding: 0 8px;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar__nav-item {
+  width: 100%;
+  border: none;
+  outline: none;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #d1d5db;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar__nav-item:hover {
+  background: #111827;
+  color: #f9fafb;
+}
+
+.sidebar__nav-item--active {
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  color: #f9fafb;
+}
+
+.sidebar__nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6b7280;
+}
+
+.sidebar__nav-item--active .sidebar__nav-dot {
+  background: #f9fafb;
+}
