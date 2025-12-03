@@ -1,6 +1,8 @@
 package com.stream.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -38,5 +40,6 @@ public class Stream {
 
     // StreamSession bạn có thể giữ nguyên
     @OneToOne(mappedBy = "stream")
+    @JsonIgnore
     private StreamSession streamSession;
 }

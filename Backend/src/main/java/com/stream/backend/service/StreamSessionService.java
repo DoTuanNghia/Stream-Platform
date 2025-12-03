@@ -12,4 +12,5 @@ public interface StreamSessionService {
     void deleteStreamSession(StreamSession streamSession);
     StreamSession stopStreamSession(StreamSession streamSession);
     StreamSession getStreamSessionById(Integer streamSessionId);
+    StreamSession startSessionForStream(Integer streamId);
 }

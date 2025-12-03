@@ -9,6 +9,7 @@ import com.stream.backend.service.StreamSessionService;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +51,7 @@ public class StreamSessionController {
 
     @GetMapping("/stream/{streamId}")
     public ResponseEntity<Map<String, Object>> getStreamSessionByStreamId(@PathVariable("streamId") Integer streamId) {
-        var streamSessions = streamSessionService.getStreamSessionsByDeviceId(streamId);
+        var streamSessions = streamSessionService.getStreamSessionsByStreamId(streamId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Welcome to Stream Platform Backend!");
@@ -74,11 +75,31 @@ public class StreamSessionController {
         return ResponseEntity.status(201).body(response);
     }
 
+    @PostMapping("/start/{streamId}")
+    public ResponseEntity<Map<String, Object>> startStreamSession(
+            @PathVariable("streamId") Integer streamId) {
+
+        Map<String, Object> response = new HashMap<>();
+        try {
+            StreamSession started = streamSessionService.startSessionForStream(streamId);
+
+            response.put("message", "StreamSession started successfully");
+            response.put("streamSession", started);
+            response.put("deviceId", started.getDevice().getId());
+            response.put("deviceName", started.getDevice().getName());
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException ex) {
+            response.put("message", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
     @PostMapping("/{streamSessionId}")
     public ResponseEntity<Map<String, Object>> stopStreamSession(
             @PathVariable("streamSessionId") Integer streamSessionId) {
 
-        StreamSession streamSession = streamSessionService.getStreamSessionById(streamSessionId);;
+        StreamSession streamSession = streamSessionService.getStreamSessionById(streamSessionId);
         var stopped = streamSessionService.stopStreamSession(streamSession);
 
         Map<String, Object> response = new HashMap<>();

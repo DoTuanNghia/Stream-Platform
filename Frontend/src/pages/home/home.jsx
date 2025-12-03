@@ -10,16 +10,27 @@ import StreamSession from "../../components/streamSession/streamSession";
 import "./home.scss";
 
 const Home = () => {
-  const [activeMenu, setActiveMenu] = useState("device"); // device | channel | stream | streamSession
+  const [activeMenu, setActiveMenu] = useState("device");
+  const [selectedChannel, setSelectedChannel] = useState(null);
 
   const renderContent = () => {
     switch (activeMenu) {
       case "device":
         return <Device />;
       case "channel":
-        return <Channel />;
+        return (
+          <Channel
+            selectedChannel={selectedChannel}
+            onSelectChannel={(ch) => {
+              // lưu kênh đang chọn
+              setSelectedChannel(ch);
+              // chuyển luôn sang tab "Danh sách luồng"
+              setActiveMenu("stream");
+            }}
+          />
+        );
       case "stream":
-        return <Stream />;
+        return <Stream channel={selectedChannel} />;
       case "streamSession":
         return <StreamSession />;
       default:

@@ -25,7 +25,7 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.username || !form.channelId || !form.name) return;
+    if (!form.channelId || !form.name) return;
     onSave(form); // gửi dữ liệu lên Channel
   };
 
@@ -43,7 +43,7 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
         </div>
 
         <form className="modal__body" onSubmit={handleSubmit}>
-          <div className="modal__field">
+          {/* <div className="modal__field">
             <label>Username</label>
             <input
               type="text"
@@ -52,7 +52,7 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
               onChange={handleChange}
               placeholder="Nhập username"
             />
-          </div>
+          </div> */}
 
           <div className="modal__field">
             <label>ID Kênh</label>

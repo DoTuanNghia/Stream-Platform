@@ -1,8 +1,10 @@
 package com.stream.backend.service.implementation;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.stream.backend.entity.Device;
 import com.stream.backend.entity.Stream;
@@ -73,14 +75,64 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     @Override
-    public StreamSession stopStreamSession(StreamSession streamSession) {
-        streamSession.setStatus("STOPPED");
-        return streamSessionRepository.save(streamSession);
-    }
-
-    @Override
     public StreamSession getStreamSessionById(Integer streamSessionId) {
         return streamSessionRepository.findById(streamSessionId)
                 .orElseThrow(() -> new RuntimeException("StreamSession not found with id = " + streamSessionId));
+    }
+
+    @Override
+    @Transactional
+    public StreamSession stopStreamSession(StreamSession session) {
+
+        // 1. Đổi trạng thái
+        session.setStatus("STOPPED");
+        streamSessionRepository.save(session);
+
+        // 2. Giảm currentSession của device
+        Device device = session.getDevice();
+        if (device != null) {
+            int current = device.getCurrentSession() != null
+                    ? device.getCurrentSession()
+                    : 0;
+            if (current > 0) {
+                device.setCurrentSession(current - 1);
+                deviceRepository.save(device);
+            }
+        }
+
+        return session;
+    }
+
+    @Override
+    @Transactional
+    public StreamSession startSessionForStream(Integer streamId) {
+
+        // 1. Lấy stream từ repo
+        Stream stream = streamRepository.findById(streamId)
+                .orElseThrow(() -> new RuntimeException("Stream không tồn tại"));
+
+        // 2. Tìm device rảnh (ID nhỏ nhất)
+        List<Device> devices = deviceRepository.findAvailableDevices();
+        if (devices.isEmpty()) {
+            throw new RuntimeException("Không còn device nào trống");
+        }
+
+        Device device = devices.get(0); // ưu tiên ID nhỏ nhất
+
+        // 3. Tạo session mới
+        StreamSession session = new StreamSession();
+        session.setStream(stream);
+        session.setDevice(device);
+        session.setStatus("ACTIVE");
+        session.setSpecification(stream.getName());
+        // session.setTimeStart(LocalDateTime.now());
+
+        StreamSession saved = streamSessionRepository.save(session);
+
+        // 4. Tăng currentSession
+        device.setCurrentSession(device.getCurrentSession() + 1);
+        deviceRepository.save(device);
+
+        return saved;
     }
 }

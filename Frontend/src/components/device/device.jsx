@@ -1,29 +1,36 @@
-// src/components/device/device.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import "./device.scss";
-
-const mockDevices = [
-  {
-    id: 1,
-    name: "R16RK4U17-3",
-    lastActive: "119 phút trước",
-    liveCount: 7,
-  },
-  {
-    id: 2,
-    name: "R16RK4U17-4",
-    lastActive: "3 phút trước",
-    liveCount: 2,
-  },
-];
+import axiosClient from "../../api/axiosClient";
 
 const Device = () => {
+  const [devices, setDevices] = useState([]);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const data = await axiosClient.get("/devices");
+
+        // Chỉ giữ device có currentSession > 0
+        const filtered = (data || []).filter(
+          d => (d.currentSession ?? 0) > 0
+        );
+
+        setDevices(filtered);
+      } catch (err) {
+        console.error(err);
+        setDevices([]);
+      }
+    };
+
+    fetchDevices();
+  }, []);
+
   return (
     <section className="card">
       <div className="card__header">
         <h2 className="card__title">Danh sách máy đang hoạt động</h2>
         <span className="card__subtitle">
-          Tổng số: <strong>{mockDevices.length}</strong> máy
+          Tổng số: <strong>{devices.length}</strong> máy
         </span>
       </div>
 
@@ -39,17 +46,23 @@ const Device = () => {
             </tr>
           </thead>
           <tbody>
-            {mockDevices.map((device, index) => (
-              <tr key={device.id}>
-                <td>{index + 1}</td>
-                <td>{device.name}</td>
-                <td>{device.lastActive}</td>
-                <td>{device.liveCount}</td>
-                <td>
-                  <button className="btn btn--danger">Xóa</button>
-                </td>
+            {devices.length === 0 ? (
+              <tr>
+                <td colSpan={5}>Không có máy nào.</td>
               </tr>
-            ))}
+            ) : (
+              devices.map((device, index) => (
+                <tr key={device.id}>
+                  <td>{index + 1}</td>
+                  <td>{device.name}</td>
+                  <td>{device.lastActive || "-"}</td>
+                  <td>{device.currentSession}</td>
+                  <td>
+                    <button className="btn btn--danger">Xóa</button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
