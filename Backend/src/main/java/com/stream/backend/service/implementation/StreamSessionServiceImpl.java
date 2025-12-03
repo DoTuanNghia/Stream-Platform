@@ -124,7 +124,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         session.setStream(stream);
         session.setDevice(device);
         session.setStatus("ACTIVE");
-        session.setSpecification(stream.getName());
+        session.setSpecification("Blank");
         // session.setTimeStart(LocalDateTime.now());
 
         StreamSession saved = streamSessionRepository.save(session);

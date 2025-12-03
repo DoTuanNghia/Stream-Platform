@@ -134,7 +134,7 @@ const Channel = ({ onSelectChannel, selectedChannel }) => {
                   >
                     <td>{index + 1}</td>
                     <td>{ch.name}</td>
-                    <td className="table__mono">{ch.channelCode}</td>
+                    <td className="table__mono"><a href={`https://www.youtube.com/channel/${ch.channelCode}`}>{ch.channelCode}</a></td>
                     <td>
                       <div className="table__actions">
                         <button
