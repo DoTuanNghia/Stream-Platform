@@ -41,7 +41,7 @@ const Login = () => {
       const storage = form.remember ? localStorage : sessionStorage;
       storage.setItem("currentUser", JSON.stringify(member));
 
-      navigate("/"); // sang Home
+      navigate("/home"); // sang Home
     } catch (err) {
       console.error(err);
       const msg =
