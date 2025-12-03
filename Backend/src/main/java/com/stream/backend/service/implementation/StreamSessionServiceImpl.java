@@ -66,4 +66,21 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         return streamSessionRepository.save(session);
     }
+
+    @Override
+    public void deleteStreamSession(StreamSession streamSession) {
+        streamSessionRepository.delete(streamSession);
+    }
+
+    @Override
+    public StreamSession stopStreamSession(StreamSession streamSession) {
+        streamSession.setStatus("STOPPED");
+        return streamSessionRepository.save(streamSession);
+    }
+
+    @Override
+    public StreamSession getStreamSessionById(Integer streamSessionId) {
+        return streamSessionRepository.findById(streamSessionId)
+                .orElseThrow(() -> new RuntimeException("StreamSession not found with id = " + streamSessionId));
+    }
 }

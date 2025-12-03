@@ -2,6 +2,7 @@ package com.stream.backend.repository;
 
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -12,4 +13,5 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
     List<StreamSession> findByDeviceId(Integer deviceId);
     List<StreamSession> findByStreamId(Integer streamId);
     StreamSession save(StreamSession streamSession);
+    void delete(StreamSession streamSession);
 }

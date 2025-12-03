@@ -9,4 +9,7 @@ public interface StreamSessionService {
     List<StreamSession> getStreamSessionsByDeviceId(Integer deviceId);
     List<StreamSession> getStreamSessionsByStreamId(Integer streamId);
     StreamSession creatStreamSession(StreamSession streamSession, Integer deviceId, Integer streamId);
+    void deleteStreamSession(StreamSession streamSession);
+    StreamSession stopStreamSession(StreamSession streamSession);
+    StreamSession getStreamSessionById(Integer streamSessionId);
 }
