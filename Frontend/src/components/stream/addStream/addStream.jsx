@@ -10,7 +10,7 @@ const AddStream = ({ isOpen, onClose, onSave, channelId }) => {
         fullHd: 0,
         startTime: "",
         startDate: "",
-        streamAfter: 0,   // thêm dòng này
+        streamAfter: 0,  
         duration: 0,
     });
 
@@ -38,7 +38,7 @@ const AddStream = ({ isOpen, onClose, onSave, channelId }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!form.keyLive) return; // đơn giản: yêu cầu có key
+        if (!form.keyLive) return;
         onSave(form);
     };
 

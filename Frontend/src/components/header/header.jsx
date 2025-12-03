@@ -24,13 +24,10 @@ const Header = () => {
 
   const toggleMenu = () => setOpenMenu(prev => !prev);
 
-  // 👉 Lấy tên từ backend: user.name
   const displayName = user?.name || user?.username || "User";
 
-  // 👉 Lấy role
   const displayRole = user?.role || "Role";
-
-  // 👉 Avatar initials
+  
   const initials = displayName
     .split(" ")
     .map(w => w[0])

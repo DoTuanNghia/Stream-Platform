@@ -26,7 +26,6 @@ const Login = () => {
     setError("");
 
     try {
-      // AuthController dùng @RequestParam username/password 
       const member = await axiosClient.post(
         "/auth/login",
         null,
@@ -41,7 +40,7 @@ const Login = () => {
       const storage = form.remember ? localStorage : sessionStorage;
       storage.setItem("currentUser", JSON.stringify(member));
 
-      navigate("/home"); // sang Home
+      navigate("/home"); 
     } catch (err) {
       console.error(err);
       const msg =

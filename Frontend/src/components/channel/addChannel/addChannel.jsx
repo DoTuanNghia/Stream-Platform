@@ -16,7 +16,7 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null; // đóng modal thì không render
+  if (!isOpen) return null; 
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -25,15 +25,16 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // if (!form.username || !form.channelId || !form.name) return;
     if (!form.channelId || !form.name) return;
-    onSave(form); // gửi dữ liệu lên Channel
+    onSave(form); 
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal"
-        onClick={(e) => e.stopPropagation()} // tránh đóng khi click trong modal
+        onClick={(e) => e.stopPropagation()} 
       >
         <div className="modal__header">
           <span className="modal__title">Kênh :</span>

@@ -22,9 +22,7 @@ const Home = () => {
           <Channel
             selectedChannel={selectedChannel}
             onSelectChannel={(ch) => {
-              // lưu kênh đang chọn
               setSelectedChannel(ch);
-              // chuyển luôn sang tab "Danh sách luồng"
               setActiveMenu("stream");
             }}
           />
