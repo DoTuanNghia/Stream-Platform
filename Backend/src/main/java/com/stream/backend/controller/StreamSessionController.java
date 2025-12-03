@@ -74,4 +74,17 @@ public class StreamSessionController {
         return ResponseEntity.status(201).body(response);
     }
 
+    @PostMapping("/{streamSessionId}")
+    public ResponseEntity<Map<String, Object>> stopStreamSession(
+            @PathVariable("streamSessionId") Integer streamSessionId) {
+
+        StreamSession streamSession = streamSessionService.getStreamSessionById(streamSessionId);;
+        var stopped = streamSessionService.stopStreamSession(streamSession);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "StreamSession stopped successfully");
+        response.put("streamSession", stopped);
+
+        return ResponseEntity.ok(response);
+    }
 }
