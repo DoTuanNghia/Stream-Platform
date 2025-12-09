@@ -1,6 +1,7 @@
 package com.stream.backend.service.implementation;
 
-import java.time.LocalDateTime;
+import com.stream.backend.service.FfmpegService;
+
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -19,12 +20,17 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     private final StreamSessionRepository streamSessionRepository;
     private final StreamRepository streamRepository;
     private final DeviceRepository deviceRepository;
+    private final FfmpegService ffmpegService;
 
-    public StreamSessionServiceImpl(StreamSessionRepository streamSessionRepository, StreamRepository streamRepository,
-            DeviceRepository deviceRepository) {
+    public StreamSessionServiceImpl(
+            StreamSessionRepository streamSessionRepository,
+            StreamRepository streamRepository,
+            DeviceRepository deviceRepository,
+            FfmpegService ffmpegService) {
         this.streamSessionRepository = streamSessionRepository;
         this.streamRepository = streamRepository;
         this.deviceRepository = deviceRepository;
+        this.ffmpegService = ffmpegService;
     }
 
     @Override
@@ -133,6 +139,25 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         device.setCurrentSession(device.getCurrentSession() + 1);
         deviceRepository.save(device);
 
+        // 5. Gọi FFmpeg để bắt đầu livestream lên YouTube
+        try {
+            String streamKey = stream.getKeyStream();
+            if (streamKey == null || streamKey.isBlank()) {
+                throw new RuntimeException("Stream key (keyStream) trống, không thể livestream.");
+            }
+
+            ffmpegService.startStream(
+                    null, // videoPath: null => dùng demo video trong config
+                    null, // rtmpUrl: null => dùng youtubeRtmp trong config
+                    streamKey // stream key của YouTube
+            );
+        } catch (Exception e) {
+            // Nếu muốn, có thể cập nhật status = ERROR
+            System.err.println("Không thể khởi chạy FFmpeg cho streamId = " + streamId);
+            e.printStackTrace();
+            // Tùy bạn: có thể throw để FE nhận lỗi, hoặc chỉ log
+            // throw new RuntimeException("Không thể bắt đầu FFmpeg", e);
+        }
         return saved;
     }
 }
