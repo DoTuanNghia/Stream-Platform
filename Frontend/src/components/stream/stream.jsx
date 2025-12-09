@@ -46,7 +46,6 @@ const Stream = ({ channel }) => {
 
   useEffect(() => {
     fetchStreams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel?.id]);
 
   const handleAddStream = async (form) => {

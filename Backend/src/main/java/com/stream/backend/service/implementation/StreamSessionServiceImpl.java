@@ -1,7 +1,9 @@
 package com.stream.backend.service.implementation;
 
-import java.time.LocalDateTime;
+import com.stream.backend.service.FfmpegService;
+
 import java.util.List;
+import java.util.Arrays;   
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,12 +21,17 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     private final StreamSessionRepository streamSessionRepository;
     private final StreamRepository streamRepository;
     private final DeviceRepository deviceRepository;
+    private final FfmpegService ffmpegService;
 
-    public StreamSessionServiceImpl(StreamSessionRepository streamSessionRepository, StreamRepository streamRepository,
-            DeviceRepository deviceRepository) {
+    public StreamSessionServiceImpl(
+            StreamSessionRepository streamSessionRepository,
+            StreamRepository streamRepository,
+            DeviceRepository deviceRepository,
+            FfmpegService ffmpegService) {
         this.streamSessionRepository = streamSessionRepository;
         this.streamRepository = streamRepository;
         this.deviceRepository = deviceRepository;
+        this.ffmpegService = ffmpegService;
     }
 
     @Override
@@ -44,8 +51,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
     @Override
     public StreamSession creatStreamSession(StreamSession requestBody,
-            Integer deviceId,
-            Integer streamId) {
+                                            Integer deviceId,
+                                            Integer streamId) {
 
         Device device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new RuntimeException("Device not found with id = " + deviceId));
@@ -133,6 +140,37 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         device.setCurrentSession(device.getCurrentSession() + 1);
         deviceRepository.save(device);
 
+        // 5. Gọi FFmpeg để bắt đầu livestream lên YouTube
+        try {
+            String streamKey = stream.getKeyStream();
+            if (streamKey == null || streamKey.isBlank()) {
+                throw new RuntimeException("Stream key (keyStream) trống, không thể livestream.");
+            }
+
+            // Lấy dòng đầu tiên KHÔNG RỖNG trong videoList (mỗi dòng 1 video)
+            String videoSource = null;
+            if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
+                videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .findFirst()
+                        .orElse(null);
+            }
+
+            // videoSource có thể là:
+            //  - đường dẫn local: C:\Videos\demo.mp4
+            //  - URL Google Drive (direct link): https://drive.google.com/uc?export=download&id=...
+            //  - URL HTTP khác
+            // Nếu videoSource == null => FfmpegService sẽ dùng demoVideo trong config
+            ffmpegService.startStream(
+                    videoSource,
+                    null,
+                    streamKey
+            );
+        } catch (Exception e) {
+            System.err.println("Không thể khởi chạy FFmpeg cho streamId = " + streamId);
+            e.printStackTrace();
+        }
         return saved;
     }
 }

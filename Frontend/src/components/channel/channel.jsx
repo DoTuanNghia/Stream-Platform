@@ -28,7 +28,6 @@ const Channel = ({ onSelectChannel, selectedChannel }) => {
     setLoading(true);
     setError("");
     try {
-      // GET /api/channels/user/{userId}
       const data = await axiosClient.get(`/channels/user/${userId}`);
       setChannels(data.channels || []);
     } catch (err) {
@@ -46,7 +45,6 @@ const Channel = ({ onSelectChannel, selectedChannel }) => {
 
   useEffect(() => {
     fetchChannels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleAddChannel = async (form) => {
