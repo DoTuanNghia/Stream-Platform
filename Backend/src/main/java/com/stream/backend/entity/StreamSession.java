@@ -1,5 +1,7 @@
 package com.stream.backend.entity;
 
+import java.time.LocalDateTime;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -24,6 +26,12 @@ public class StreamSession {
 
     @Column(nullable = false, length = 50)
     private String status;
+    
+    @Column(name = "start_time")
+    private LocalDateTime startTime;
+
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
 
     // 1 Device có N StreamSession
     @ManyToOne
@@ -34,6 +42,6 @@ public class StreamSession {
     // 1 Stream có 1 StreamSession (stream_id UNIQUE)
     @OneToOne
     @JoinColumn(name = "stream_id", nullable = false, unique = true)
-    @JsonIgnoreProperties({"streamSession", "channel"})
+    @JsonIgnoreProperties({ "streamSession", "channel" })
     private Stream stream;
 }

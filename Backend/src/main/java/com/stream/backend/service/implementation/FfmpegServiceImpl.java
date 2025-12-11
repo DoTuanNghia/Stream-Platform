@@ -65,12 +65,12 @@ public class FfmpegServiceImpl implements FfmpegService {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
             cmd.add("-re");
-            // nếu muốn loop vô hạn video, thêm 2 dòng sau:
-            // cmd.add("-stream_loop");
-            // cmd.add("-1");
+            // loop vô hạn video
+            cmd.add("-stream_loop");
+            cmd.add("-1");
 
             cmd.add("-i");
-            cmd.add(videoPath);    // <-- có thể là local path HOẶC URL
+            cmd.add(videoPath);
             cmd.add("-c:v");
             cmd.add("libx264");
             cmd.add("-preset");
@@ -144,4 +144,5 @@ public class FfmpegServiceImpl implements FfmpegService {
 
         System.out.println("Stopped FFmpeg process for stream key: " + streamKey);
     }
+
 }

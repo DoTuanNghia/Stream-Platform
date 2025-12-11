@@ -1,25 +1,25 @@
 package com.stream.backend.service.implementation;
 
-import com.stream.backend.service.FfmpegService;
-
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.Arrays;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.stream.backend.entity.Device;
 import com.stream.backend.entity.Stream;
 import com.stream.backend.entity.StreamSession;
 import com.stream.backend.repository.DeviceRepository;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
+import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamSessionService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class StreamSessionServiceImpl implements StreamSessionService {
+
     private final StreamSessionRepository streamSessionRepository;
     private final StreamRepository streamRepository;
     private final DeviceRepository deviceRepository;
@@ -35,6 +35,10 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         this.deviceRepository = deviceRepository;
         this.ffmpegService = ffmpegService;
     }
+
+    // ==========================
+    // CRUD / QUERY CƠ BẢN
+    // ==========================
 
     @Override
     public List<StreamSession> getAllStreamSessions() {
@@ -52,7 +56,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     @Override
-    public StreamSession creatStreamSession(StreamSession requestBody,
+    public StreamSession creatStreamSession(
+            StreamSession requestBody,
             Integer deviceId,
             Integer streamId) {
 
@@ -79,15 +84,14 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     @Override
-    public void deleteStreamSession(StreamSession streamSession) {
-        streamSessionRepository.delete(streamSession);
-    }
-
-    @Override
     public StreamSession getStreamSessionById(Integer streamSessionId) {
         return streamSessionRepository.findById(streamSessionId)
                 .orElseThrow(() -> new RuntimeException("StreamSession not found with id = " + streamSessionId));
     }
+
+    // ==========================
+    // DỪNG STREAM SESSION
+    // ==========================
 
     @Override
     @Transactional
@@ -97,6 +101,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         try {
             if (session != null && session.getStream() != null) {
                 String streamKey = session.getStream().getKeyStream();
+                System.out.println("[STOP] Stopping FFmpeg with streamKey = " + streamKey);
                 ffmpegService.stopStream(streamKey);
             }
         } catch (Exception e) {
@@ -122,6 +127,18 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         return session;
     }
+
+    @Override
+    @Transactional
+    public StreamSession stopStreamSessionById(Integer sessionId) {
+        StreamSession session = streamSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("StreamSession not found"));
+        return stopStreamSession(session);
+    }
+
+    // ==========================
+    // BẮT ĐẦU STREAM CHO 1 STREAM
+    // ==========================
 
     private String normalizeVideoSource(String raw) {
         if (raw == null)
@@ -162,7 +179,13 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         session.setDevice(device);
         session.setStatus("ACTIVE");
         session.setSpecification("Blank");
-        // session.setTimeStart(LocalDateTime.now());
+
+        // Ghi nhận thời gian bắt đầu thực tế của session
+        session.setStartTime(LocalDateTime.now());
+
+        // Sao chép duration từ Stream sang Session để auto-stop theo phút
+        // (duration có thể là null, 60, 120, hoặc -1)
+        session.setDurationMinutes(stream.getDuration());
 
         StreamSession saved = streamSessionRepository.save(session);
 
@@ -202,6 +225,27 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             System.err.println("Không thể khởi chạy FFmpeg cho streamId = " + streamId);
             e.printStackTrace();
         }
+
         return saved;
+    }
+
+    @Override
+    public StreamSession create(StreamSession session) {
+        session.setStatus("PENDING");
+        return streamSessionRepository.save(session);
+    }
+
+    @Override
+    public List<StreamSession> findPending() {
+        return streamSessionRepository.findByStatus("PENDING");
+    }
+
+    @Override
+    public void markStarted(Integer id) {
+        StreamSession s = streamSessionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
+
+        s.setStatus("RUNNING");
+        streamSessionRepository.save(s);
     }
 }
