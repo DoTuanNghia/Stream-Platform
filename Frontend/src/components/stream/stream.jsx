@@ -20,6 +20,7 @@ const Stream = ({ channel }) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editingStream, setEditingStream] = useState(null); // stream đang sửa
 
   const fetchStreams = async () => {
     if (!channel?.id) {
@@ -48,28 +49,42 @@ const Stream = ({ channel }) => {
     fetchStreams();
   }, [channel?.id]);
 
-  const handleAddStream = async (form) => {
+  // Thêm / Sửa stream dùng chung 1 hàm
+  const handleSaveStream = async (form) => {
     if (!channel?.id) return;
 
     try {
       const payload = {
         name: form.note || "Stream mới",
         keyStream: form.keyLive,
+        videoList:
+          form.videoList && form.videoList.trim() !== ""
+            ? form.videoList
+            : null,
       };
 
       if (form.startDate && form.startTime) {
         payload.timeStart = `${form.startDate}T${form.startTime}:00`;
       }
+
       if (form.duration) {
         payload.duration = Number(form.duration);
       }
 
-      await axiosClient.post(`/streams/channel/${channel.id}`, payload);
+      if (editingStream) {
+        // SỬA
+        await axiosClient.put(`/streams/${editingStream.id}`, payload);
+      } else {
+        // THÊM MỚI
+        await axiosClient.post(`/streams/channel/${channel.id}`, payload);
+      }
+
       await fetchStreams();
       setIsAddOpen(false);
+      setEditingStream(null);
     } catch (err) {
       console.error(err);
-      alert("Tạo luồng thất bại.");
+      alert(editingStream ? "Sửa luồng thất bại." : "Tạo luồng thất bại.");
     }
   };
 
@@ -95,10 +110,8 @@ const Stream = ({ channel }) => {
 
       alert(
         res.message ||
-        `Đã bắt đầu stream trên máy ${res.deviceName || res.deviceId}.`
+          `Đã bắt đầu stream trên máy ${res.deviceName || res.deviceId}.`
       );
-
-      // Không cần setStreams, không xóa luồng; chỉ start session
     } catch (err) {
       console.error(err);
       const msg =
@@ -107,8 +120,6 @@ const Stream = ({ channel }) => {
       alert(msg);
     }
   };
-
-
 
   if (!channel) {
     return (
@@ -123,17 +134,27 @@ const Stream = ({ channel }) => {
     );
   }
 
-  const openAddModal = () => setIsAddOpen(true);
-  const closeAddModal = () => setIsAddOpen(false);
+  const openAddModal = () => {
+    setEditingStream(null);
+    setIsAddOpen(true);
+  };
+
+  const openEditModal = (st) => {
+    setEditingStream(st);
+    setIsAddOpen(true);
+  };
+
+  const closeAddModal = () => {
+    setIsAddOpen(false);
+    setEditingStream(null);
+  };
 
   return (
     <>
       <section className="card">
         <div className="card__header">
           <div>
-            <h2 className="card__title">
-              Danh sách luồng của kênh đang chọn
-            </h2>
+            <h2 className="card__title">Danh sách luồng của kênh đang chọn</h2>
             <p className="card__subtitle">
               Kênh: <strong>{channel.name}</strong>{" "}
               (<span className="table__mono">{channel.channelCode}</span>)
@@ -189,7 +210,7 @@ const Stream = ({ channel }) => {
                         </button>
                         <button
                           className="btn btn--ghost"
-                          onClick={() => alert("Chức năng sửa chưa làm.")}
+                          onClick={() => openEditModal(st)}
                         >
                           Sửa
                         </button>
@@ -212,11 +233,13 @@ const Stream = ({ channel }) => {
       <AddStream
         isOpen={isAddOpen}
         onClose={closeAddModal}
-        onSave={handleAddStream}
+        onSave={handleSaveStream}
         channelId={channel.channelCode}
+        initialData={editingStream}
       />
     </>
   );
 };
 
 export default Stream;
+

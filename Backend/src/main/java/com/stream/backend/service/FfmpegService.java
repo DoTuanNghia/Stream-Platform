@@ -10,4 +10,7 @@ public interface FfmpegService {
      * @param streamKey stream key của YouTube
      */
     void startStream(String videoPath, String rtmpUrl, String streamKey);
+
+    void stopStream(String streamKey);
 }
+

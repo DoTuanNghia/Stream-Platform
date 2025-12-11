@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,9 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     @Value("${stream.demo.video}")
     private String demoVideoPath;
+
+    // Lưu process FFmpeg theo streamKey để sau còn stop được
+    private final Map<String, Process> processMap = new ConcurrentHashMap<>();
 
     @Override
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
@@ -42,10 +48,27 @@ public class FfmpegServiceImpl implements FfmpegService {
                 ? rtmpUrl + streamKey
                 : rtmpUrl + "/" + streamKey;
 
+        // Nếu đã có process với streamKey này thì dừng nó trước
+        Process old = processMap.get(streamKey);
+        if (old != null && old.isAlive()) {
+            old.destroy();
+            try {
+                old.waitFor(3, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        final String keyForMap = streamKey; // dùng trong lambda
+
         try {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
             cmd.add("-re");
+            // nếu muốn loop vô hạn video, thêm 2 dòng sau:
+            // cmd.add("-stream_loop");
+            // cmd.add("-1");
+
             cmd.add("-i");
             cmd.add(videoPath);    // <-- có thể là local path HOẶC URL
             cmd.add("-c:v");
@@ -70,7 +93,10 @@ public class FfmpegServiceImpl implements FfmpegService {
             pb.redirectErrorStream(true); // gộp stderr vào stdout
             Process process = pb.start();
 
-            // In log ffmpeg ra console (không bắt buộc, nhưng hữu ích khi debug)
+            // LƯU process vào map để sau này stop được
+            processMap.put(keyForMap, process);
+
+            // In log ffmpeg ra console
             new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(process.getInputStream()))) {
@@ -80,6 +106,9 @@ public class FfmpegServiceImpl implements FfmpegService {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    // Khi process tự kết thúc (video hết / lỗi) thì xoá khỏi map
+                    processMap.remove(keyForMap);
                 }
             }).start();
 
@@ -88,5 +117,31 @@ public class FfmpegServiceImpl implements FfmpegService {
         } catch (IOException e) {
             throw new RuntimeException("Failed to start FFmpeg process", e);
         }
+    }
+
+    @Override
+    public void stopStream(String streamKey) {
+        if (streamKey == null || streamKey.isBlank()) {
+            return;
+        }
+
+        Process process = processMap.remove(streamKey);
+        if (process == null) {
+            System.out.println("No FFmpeg process found for stream key: " + streamKey);
+            return;
+        }
+
+        if (process.isAlive()) {
+            process.destroy(); // gửi tín hiệu dừng mềm
+            try {
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    process.destroyForcibly(); // nếu không dừng thì kill mạnh
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        System.out.println("Stopped FFmpeg process for stream key: " + streamKey);
     }
 }

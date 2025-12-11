@@ -3,7 +3,9 @@ package com.stream.backend.service.implementation;
 import com.stream.backend.service.FfmpegService;
 
 import java.util.List;
-import java.util.Arrays;   
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Arrays;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +53,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
     @Override
     public StreamSession creatStreamSession(StreamSession requestBody,
-                                            Integer deviceId,
-                                            Integer streamId) {
+            Integer deviceId,
+            Integer streamId) {
 
         Device device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new RuntimeException("Device not found with id = " + deviceId));
@@ -91,6 +93,17 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Transactional
     public StreamSession stopStreamSession(StreamSession session) {
 
+        // 0. Dừng FFmpeg nếu đang chạy
+        try {
+            if (session != null && session.getStream() != null) {
+                String streamKey = session.getStream().getKeyStream();
+                ffmpegService.stopStream(streamKey);
+            }
+        } catch (Exception e) {
+            System.err.println("Không thể dừng FFmpeg cho sessionId = " + session.getId());
+            e.printStackTrace();
+        }
+
         // 1. Đổi trạng thái
         session.setStatus("STOPPED");
         streamSessionRepository.save(session);
@@ -108,6 +121,23 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         }
 
         return session;
+    }
+
+    private String normalizeVideoSource(String raw) {
+        if (raw == null)
+            return null;
+        raw = raw.trim();
+
+        // Nếu là link Google Drive dạng /file/d/.../view thì convert sang direct link
+        Pattern p = Pattern.compile("https?://drive\\.google\\.com/file/d/([^/]+)/view.*");
+        Matcher m = p.matcher(raw);
+        if (m.matches()) {
+            String fileId = m.group(1);
+            return "https://drive.google.com/uc?export=download&id=" + fileId;
+        }
+
+        // Còn lại giữ nguyên (đường dẫn local, URL khác,...)
+        return raw;
     }
 
     @Override
@@ -153,20 +183,21 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                 videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
                         .map(String::trim)
                         .filter(s -> !s.isEmpty())
+                        .map(this::normalizeVideoSource)
                         .findFirst()
                         .orElse(null);
             }
 
             // videoSource có thể là:
-            //  - đường dẫn local: C:\Videos\demo.mp4
-            //  - URL Google Drive (direct link): https://drive.google.com/uc?export=download&id=...
-            //  - URL HTTP khác
+            // - đường dẫn local: C:\Videos\demo.mp4
+            // - URL Google Drive (direct link):
+            // https://drive.google.com/uc?export=download&id=...
+            // - URL HTTP khác
             // Nếu videoSource == null => FfmpegService sẽ dùng demoVideo trong config
             ffmpegService.startStream(
                     videoSource,
                     null,
-                    streamKey
-            );
+                    streamKey);
         } catch (Exception e) {
             System.err.println("Không thể khởi chạy FFmpeg cho streamId = " + streamId);
             e.printStackTrace();

@@ -73,4 +73,29 @@ public class StreamServiceImpl implements StreamService {
         streamRepository.delete(existingStream);
     }
 
+        @Override
+    @Transactional
+    public Stream updateStream(Integer id, Stream stream) {
+        Stream existing = streamRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Stream not found"));
+
+        if (stream.getName() != null) {
+            existing.setName(stream.getName());
+        }
+        if (stream.getKeyStream() != null) {
+            existing.setKeyStream(stream.getKeyStream());
+        }
+        if (stream.getVideoList() != null) {
+            existing.setVideoList(stream.getVideoList());
+        }
+        if (stream.getTimeStart() != null) {
+            existing.setTimeStart(stream.getTimeStart());
+        }
+        if (stream.getDuration() != null) {
+            existing.setDuration(stream.getDuration());
+        }
+
+        return streamRepository.save(existing);
+    }
+
 }
