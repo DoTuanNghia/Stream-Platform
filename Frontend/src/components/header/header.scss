@@ -84,7 +84,8 @@
   border-radius: 999px;
   padding: 4px 8px 4px 12px;
   border: 1px solid #1f2937;
-  position: relative; /* để dropdown bám theo */
+  position: relative;
+  /* để dropdown bám theo */
   cursor: pointer;
 }
 
@@ -125,37 +126,39 @@
   font-weight: 600;
 }
 
-/* Dropdown dưới cụm user */
+
 .header__dropdown {
   position: absolute;
   top: 48px;
   right: 0;
-  background: #0f172a;             
+  background: #0f172a;
   border: 1px solid #334155;
   border-radius: 12px;
   min-width: 160px;
-  padding: 6px 0;
+  padding: 4px;                
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
   z-index: 100;
+  overflow: hidden;           
 }
 
 .header__dropdown-item {
+  display: block;
   width: 100%;
+  box-sizing: border-box;
   padding: 10px 16px;
-  text-align: left;
+  text-align: center;
   font-size: 14px;
-  background: #ffffff;      /* Trắng hoàn toàn */
-  color: #0f172a;           /* Chữ đen xanh */
+  background: #ffffff;
+  color: #0f172a;
   border: none;
   outline: none;
   cursor: pointer;
-  border-radius: 6px;       /* Cho mềm hơn */
-  margin: 4px 8px;          /* Tạo khoảng cách */
+  margin: 0;                   
+  border-radius: 8px;         
   font-weight: 500;
 }
 
 .header__dropdown-item:hover {
-  background: #e2e8f0;      /* xám sáng – hover */
+  background: #e2e8f0;
   color: #0f172a;
 }
-
