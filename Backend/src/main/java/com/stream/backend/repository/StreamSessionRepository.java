@@ -14,4 +14,5 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
     List<StreamSession> findByStreamId(Integer streamId);
     StreamSession save(StreamSession streamSession);
     void delete(StreamSession streamSession);
+    List<StreamSession> findByStatus(String status);
 }
