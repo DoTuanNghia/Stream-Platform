@@ -41,6 +41,12 @@ public class Stream {
     @Column(name = "yt_stream_id")
     private String youtubeStreamId;
 
+    @Column(name = "auto_start")
+    private Boolean autoStart = true;
+
+    @Column(name = "auto_stop")
+    private Boolean autoStop = true;
+
     // 1 Channel có N Stream
     @ManyToOne
     @JoinColumn(name = "channel_id", nullable = false)

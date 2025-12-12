@@ -5,7 +5,6 @@ import com.stream.backend.entity.StreamSession;
 import com.stream.backend.repository.StreamSessionRepository;
 import com.stream.backend.service.StreamSessionService;
 import com.stream.backend.youtube.YouTubeLiveService;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,7 +23,10 @@ public class StreamScheduler {
     private final StreamSessionService streamSessionService;
     private final YouTubeLiveService youTubeLiveService;
 
-    @Scheduled(fixedRate = 30000)
+    /**
+     * fixedDelay: chỉ chạy lượt tiếp theo sau khi lượt trước xong -> tránh overlap
+     */
+    @Scheduled(fixedDelay = 10_000)
     @Transactional
     public void autoStartAndStop() {
         LocalDateTime now = LocalDateTime.now();
@@ -32,50 +34,86 @@ public class StreamScheduler {
         autoStopExpiredSessions(now);
     }
 
+    /**
+     * AUTO START:
+     * - Session status = SCHEDULED
+     * - stream.timeStart <= now
+     * - Start FFmpeg trước (startScheduledSession)
+     * - Sau đó có thể transition broadcast (tùy bạn, nhưng nên "tự động" theo encoder)
+     */
     private void autoStartScheduledSessions(LocalDateTime now) {
         List<StreamSession> scheduledSessions = streamSessionRepository.findByStatus("SCHEDULED");
+
         for (StreamSession session : scheduledSessions) {
             Stream stream = session.getStream();
             if (stream == null || stream.getTimeStart() == null) continue;
 
-            if (!stream.getTimeStart().isAfter(now)) {
-                log.info("[AUTO-START] sessionId={}, streamId={}", session.getId(), stream.getId());
-                try {
-                    // 1. Chuyển broadcast sang LIVE (nếu có)
-                    youTubeLiveService.transitionBroadcast(stream, "live");
+            if (stream.getTimeStart().isAfter(now)) continue; // chưa tới giờ
 
-                    // 2. Start FFmpeg + set status ACTIVE, tăng currentSession
-                    streamSessionService.startScheduledSession(session.getId());
-                } catch (Exception e) {
-                    log.error("Lỗi auto-start cho sessionId=" + session.getId(), e);
+            log.info("[AUTO-START] sessionId={}, streamId={}", session.getId(), stream.getId());
+
+            try {
+                // 1) Start encoder + set ACTIVE + set startedAt + tăng currentSession
+                StreamSession started = streamSessionService.startScheduledSession(session.getId());
+
+                // 2) Transition broadcast: KHÔNG BẮT BUỘC nếu bạn dùng autoStart (YouTube sẽ tự lên live khi có tín hiệu)
+                // Nếu bạn vẫn muốn chủ động transition, nên "try" và ignore lỗi.
+                try {
+                    youTubeLiveService.transitionBroadcast(stream, "live");
+                } catch (Exception ex) {
+                    // Nhiều case YouTube từ chối transition khi chưa "ready/live" -> không làm sập scheduler
+                    log.warn("[AUTO-START] transition 'live' failed for streamId={} (ignored): {}",
+                            stream.getId(), ex.getMessage());
                 }
+
+            } catch (Exception e) {
+                log.error("[AUTO-START] failed sessionId=" + session.getId(), e);
             }
         }
     }
 
+    /**
+     * AUTO STOP:
+     * - Session status = ACTIVE
+     * - duration = -1 => bỏ qua
+     * - stop theo startedAt (chuẩn), fallback về stream.timeStart nếu startedAt null
+     */
     private void autoStopExpiredSessions(LocalDateTime now) {
         List<StreamSession> activeSessions = streamSessionRepository.findByStatus("ACTIVE");
+
         for (StreamSession session : activeSessions) {
             Stream stream = session.getStream();
-            if (stream == null || stream.getTimeStart() == null || stream.getDuration() == null) continue;
+            if (stream == null) continue;
 
-            if (stream.getDuration() == -1) {
-                // live vô hạn, không auto stop
-                continue;
-            }
+            Integer duration = stream.getDuration();
+            if (duration == null) continue;
 
-            LocalDateTime endTime = stream.getTimeStart().plusMinutes(stream.getDuration());
-            if (!endTime.isAfter(now)) {
-                log.info("[AUTO-STOP] sessionId={}, streamId={}", session.getId(), stream.getId());
+            if (duration == -1) continue; // live vô hạn
+
+            // Ưu tiên startedAt của session, nếu chưa có thì fallback stream.timeStart
+            LocalDateTime base = session.getStartedAt() != null ? session.getStartedAt() : stream.getTimeStart();
+            if (base == null) continue;
+
+            LocalDateTime endTime = base.plusMinutes(duration);
+
+            if (endTime.isAfter(now)) continue; // chưa hết giờ
+
+            log.info("[AUTO-STOP] sessionId={}, streamId={}", session.getId(), stream.getId());
+
+            try {
+                // 1) Stop encoder + set STOPPED + giảm currentSession + set stoppedAt
+                streamSessionService.stopStreamSession(session);
+
+                // 2) Transition complete (cũng nên ignore nếu fail)
                 try {
-                    // 1. Stop FFmpeg + set status STOPPED, giảm currentSession
-                    streamSessionService.stopStreamSession(session);
-
-                    // 2. Chuyển broadcast sang COMPLETED
                     youTubeLiveService.transitionBroadcast(stream, "complete");
-                } catch (Exception e) {
-                    log.error("Lỗi auto-stop cho sessionId=" + session.getId(), e);
+                } catch (Exception ex) {
+                    log.warn("[AUTO-STOP] transition 'complete' failed for streamId={} (ignored): {}",
+                            stream.getId(), ex.getMessage());
                 }
+
+            } catch (Exception e) {
+                log.error("[AUTO-STOP] failed sessionId=" + session.getId(), e);
             }
         }
     }
