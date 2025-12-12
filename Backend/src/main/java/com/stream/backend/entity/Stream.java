@@ -32,14 +32,19 @@ public class Stream {
     @Column
     private Integer duration;
 
-    // Danh sách video (mỗi dòng 1 video: đường dẫn hoặc URL)
     @Column(name = "video_list", columnDefinition = "TEXT")
     private String videoList;
+
+    @Column(name = "yt_broadcast_id")
+    private String youtubeBroadcastId;
+
+    @Column(name = "yt_stream_id")
+    private String youtubeStreamId;
 
     // 1 Channel có N Stream
     @ManyToOne
     @JoinColumn(name = "channel_id", nullable = false)
-    @JsonBackReference   // đây là phía con
+    @JsonBackReference
     private Channel channel;
 
     // StreamSession bạn có thể giữ nguyên

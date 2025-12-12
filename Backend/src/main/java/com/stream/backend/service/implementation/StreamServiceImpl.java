@@ -14,6 +14,7 @@ import com.stream.backend.repository.DeviceRepository;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
 import com.stream.backend.service.StreamService;
+import com.stream.backend.youtube.YouTubeLiveService;
 
 @Service
 public class StreamServiceImpl implements StreamService {
@@ -21,12 +22,18 @@ public class StreamServiceImpl implements StreamService {
     private final ChannelRepository channelRepository;
     private final StreamSessionRepository streamSessionRepository;
     private final DeviceRepository deviceRepository;
+    private final YouTubeLiveService youTubeLiveService;   
 
-    public StreamServiceImpl(StreamRepository streamRepository, ChannelRepository channelRepository, StreamSessionRepository streamSessionRepository, DeviceRepository deviceRepository){ 
+    public StreamServiceImpl(StreamRepository streamRepository,
+                             ChannelRepository channelRepository,
+                             StreamSessionRepository streamSessionRepository,
+                             DeviceRepository deviceRepository,
+                             YouTubeLiveService youTubeLiveService) {
         this.streamRepository = streamRepository;
         this.channelRepository = channelRepository;
         this.streamSessionRepository = streamSessionRepository;
         this.deviceRepository = deviceRepository;
+        this.youTubeLiveService = youTubeLiveService;
     }
 
     @Override
@@ -39,6 +46,17 @@ public class StreamServiceImpl implements StreamService {
         Channel channel = channelRepository.findById(channelId)
                 .orElse(null);
         stream.setChannel(channel);
+
+        // 1. Gọi YouTube API để tạo schedule + streamKey
+        try {
+            String streamKey = youTubeLiveService.createScheduledBroadcastForStream(stream);
+            stream.setKeyStream(streamKey);
+        } catch (Exception e) {
+            // Tùy strategy: hoặc throw exception, hoặc cho phép tạo stream local thôi
+            throw new RuntimeException("Không tạo được lịch YouTube", e);
+        }
+
+        // 2. Lưu vào DB (bao gồm keyStream, youtubeBroadcastId, youtubeStreamId)
         return streamRepository.save(stream);
     }
 
