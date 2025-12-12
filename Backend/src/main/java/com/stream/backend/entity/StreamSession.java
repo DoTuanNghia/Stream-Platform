@@ -27,12 +27,6 @@ public class StreamSession {
     @Column(nullable = false, length = 50)
     private String status;
     
-    @Column(name = "start_time")
-    private LocalDateTime startTime;
-
-    @Column(name = "duration_minutes")
-    private Integer durationMinutes;
-
     // 1 Device có N StreamSession
     @ManyToOne
     @JoinColumn(name = "device_id", nullable = false)

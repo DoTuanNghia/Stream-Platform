@@ -11,7 +11,6 @@ import com.stream.backend.service.StreamSessionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -128,18 +127,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         return session;
     }
 
-    @Override
-    @Transactional
-    public StreamSession stopStreamSessionById(Integer sessionId) {
-        StreamSession session = streamSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("StreamSession not found"));
-        return stopStreamSession(session);
-    }
-
-    // ==========================
-    // BẮT ĐẦU STREAM CHO 1 STREAM
-    // ==========================
-
+    // Chuẩn hóa video source (Google Drive link -> direct link, v.v.)
     private String normalizeVideoSource(String raw) {
         if (raw == null)
             return null;
@@ -157,6 +145,10 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         return raw;
     }
 
+    // ==========================
+    // BẮT ĐẦU STREAM SESSION
+    // ==========================
+
     @Override
     @Transactional
     public StreamSession startSessionForStream(Integer streamId) {
@@ -171,7 +163,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             throw new RuntimeException("Không còn device nào trống");
         }
 
-        Device device = devices.get(0); // ưu tiên ID nhỏ nhất
+        Device device = devices.get(0); 
 
         // 3. Tạo session mới
         StreamSession session = new StreamSession();
@@ -180,16 +172,14 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         session.setStatus("ACTIVE");
         session.setSpecification("Blank");
 
-        // Ghi nhận thời gian bắt đầu thực tế của session
-        session.setStartTime(LocalDateTime.now());
-
-        // Sao chép duration từ Stream sang Session để auto-stop theo phút
-        // (duration có thể là null, 60, 120, hoặc -1)
-        session.setDurationMinutes(stream.getDuration());
+        // Lưu ý:
+        // - Thời gian bắt đầu (timeStart) và duration được lưu trong entity Stream
+        //   (trường timeStart, duration), KHÔNG lưu trong StreamSession nữa.
+        // - Ở đây chỉ tạo quan hệ giữa Stream và Device thông qua StreamSession.
 
         StreamSession saved = streamSessionRepository.save(session);
 
-        // 4. Tăng currentSession
+        // 4. Tăng currentSession trên device
         device.setCurrentSession(device.getCurrentSession() + 1);
         deviceRepository.save(device);
 
@@ -214,7 +204,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             // videoSource có thể là:
             // - đường dẫn local: C:\Videos\demo.mp4
             // - URL Google Drive (direct link):
-            // https://drive.google.com/uc?export=download&id=...
+            //   https://drive.google.com/uc?export=download&id=...
             // - URL HTTP khác
             // Nếu videoSource == null => FfmpegService sẽ dùng demoVideo trong config
             ffmpegService.startStream(
@@ -227,25 +217,5 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         }
 
         return saved;
-    }
-
-    @Override
-    public StreamSession create(StreamSession session) {
-        session.setStatus("PENDING");
-        return streamSessionRepository.save(session);
-    }
-
-    @Override
-    public List<StreamSession> findPending() {
-        return streamSessionRepository.findByStatus("PENDING");
-    }
-
-    @Override
-    public void markStarted(Integer id) {
-        StreamSession s = streamSessionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
-
-        s.setStatus("RUNNING");
-        streamSessionRepository.save(s);
     }
 }

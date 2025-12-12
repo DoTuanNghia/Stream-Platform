@@ -20,11 +20,4 @@ public interface StreamSessionService {
 
     StreamSession startSessionForStream(Integer streamId);
 
-    StreamSession stopStreamSessionById(Integer sessionId);
-
-    StreamSession create(StreamSession session);
-
-    List<StreamSession> findPending();
-
-    void markStarted(Integer id);   
 }
