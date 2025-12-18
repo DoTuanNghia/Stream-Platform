@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.stream.backend.entity.StreamSession;
 import com.stream.backend.service.StreamSessionService;
+import com.stream.backend.service.FfmpegService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,9 +23,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 @CrossOrigin(origins = "http://localhost:5173")
 public class StreamSessionController {
     private final StreamSessionService streamSessionService;
+    private final FfmpegService ffmpegService;
 
-    public StreamSessionController(StreamSessionService streamSessionService) {
+    public StreamSessionController(StreamSessionService streamSessionService, FfmpegService ffmpegService) {
         this.streamSessionService = streamSessionService;
+        this.ffmpegService = ffmpegService;
     }
 
     @GetMapping("")
@@ -57,6 +60,15 @@ public class StreamSessionController {
         response.put("message", "Welcome to Stream Platform Backend!");
         response.put("streamSessions", streamSessions);
 
+        return ResponseEntity.ok(response);
+    }
+
+    // NEW: lấy snapshot ffmpeg stat theo streamKey
+    @GetMapping("/ffmpeg-stat/{streamKey}")
+    public ResponseEntity<Map<String, Object>> getFfmpegStat(@PathVariable("streamKey") String streamKey) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("streamKey", streamKey);
+        response.put("stat", ffmpegService.getLatestStat(streamKey));
         return ResponseEntity.ok(response);
     }
 

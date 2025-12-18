@@ -8,10 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.stream.backend.entity.FfmpegStat;
 import com.stream.backend.service.FfmpegService;
 
 @Service
@@ -28,6 +31,15 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     // Lưu process FFmpeg theo streamKey để sau còn stop được
     private final Map<String, Process> processMap = new ConcurrentHashMap<>();
+
+    // NEW: lưu snapshot thông số theo streamKey
+    private final Map<String, FfmpegStat> statMap = new ConcurrentHashMap<>();
+
+    // Parse dòng progress phổ biến của ffmpeg
+    // frame=  245 fps=5.2 q=23.0 size=     604KiB time=00:00:40.50 bitrate= 122.1kbits/s speed=0.863x
+    private static final Pattern PROGRESS_PATTERN = Pattern.compile(
+            "frame=\\s*(\\d+)\\s+fps=\\s*([0-9.]+)\\s+q=\\s*([0-9.]+)\\s+size=\\s*(\\S+)\\s+time=(\\S+)\\s+bitrate=\\s*(\\S+)\\s+speed=(\\S+)"
+    );
 
     @Override
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
@@ -96,19 +108,31 @@ public class FfmpegServiceImpl implements FfmpegService {
             // LƯU process vào map để sau này stop được
             processMap.put(keyForMap, process);
 
-            // In log ffmpeg ra console
+            // init stat để FE không bị null
+            FfmpegStat init = new FfmpegStat();
+            init.updatedAt = System.currentTimeMillis();
+            statMap.put(keyForMap, init);
+
+            // In log ffmpeg ra console + parse snapshot
             new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         System.out.println("[FFMPEG] " + line);
+
+                        FfmpegStat parsed = parseProgressLine(line);
+                        if (parsed != null) {
+                            parsed.updatedAt = System.currentTimeMillis();
+                            statMap.put(keyForMap, parsed);
+                        }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
                     // Khi process tự kết thúc (video hết / lỗi) thì xoá khỏi map
                     processMap.remove(keyForMap);
+                    statMap.remove(keyForMap);
                 }
             }).start();
 
@@ -126,6 +150,8 @@ public class FfmpegServiceImpl implements FfmpegService {
         }
 
         Process process = processMap.remove(streamKey);
+        statMap.remove(streamKey);
+
         if (process == null) {
             System.out.println("No FFmpeg process found for stream key: " + streamKey);
             return;
@@ -145,4 +171,30 @@ public class FfmpegServiceImpl implements FfmpegService {
         System.out.println("Stopped FFmpeg process for stream key: " + streamKey);
     }
 
+    @Override
+    public FfmpegStat getLatestStat(String streamKey) {
+        if (streamKey == null || streamKey.isBlank()) return null;
+        return statMap.get(streamKey);
+    }
+
+    private FfmpegStat parseProgressLine(String line) {
+        if (line == null) return null;
+
+        Matcher m = PROGRESS_PATTERN.matcher(line);
+        if (!m.find()) return null;
+
+        try {
+            FfmpegStat s = new FfmpegStat();
+            s.frame = Long.parseLong(m.group(1));
+            s.fps = Double.parseDouble(m.group(2));
+            s.q = Double.parseDouble(m.group(3));
+            s.size = m.group(4);
+            s.time = m.group(5);
+            s.bitrate = m.group(6);
+            s.speed = m.group(7);
+            return s;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
 }

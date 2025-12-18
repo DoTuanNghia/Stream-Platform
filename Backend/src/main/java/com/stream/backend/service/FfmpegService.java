@@ -1,5 +1,7 @@
 package com.stream.backend.service;
 
+import com.stream.backend.entity.FfmpegStat;
+
 public interface FfmpegService {
 
     /**
@@ -12,5 +14,7 @@ public interface FfmpegService {
     void startStream(String videoPath, String rtmpUrl, String streamKey);
 
     void stopStream(String streamKey);
+
+    FfmpegStat getLatestStat(String streamKey);
 }
 

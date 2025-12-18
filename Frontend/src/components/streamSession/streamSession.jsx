@@ -51,7 +51,18 @@ const getDisplayEnd = (session) => {
 
 const StreamSession = () => {
   const [sessions, setSessions] = useState([]);
+  const [ffStats, setFfStats] = useState({}); // { [streamKey]: stat }
   const [loading, setLoading] = useState(false);
+
+  const buildStatText = (stat) => {
+    if (!stat) return "-";
+    const frame = stat.frame ?? "-";
+    const fps = stat.fps ?? "-";
+    const q = stat.q ?? "-";
+    const size = stat.size ?? "-";
+    const bitrate = stat.bitrate ?? "-";
+    return `frame=${frame} fps=${fps} q=${q} size=${size} bitrate=${bitrate}`;
+  };
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -65,6 +76,29 @@ const StreamSession = () => {
       });
 
       setSessions(list);
+
+      // Lấy stat theo streamKey (chỉ cần cho ACTIVE, nhưng lấy luôn cũng được)
+      const keys = list
+        .map((s) => (s.stream?.keyStream || "").trim())
+        .filter(Boolean);
+
+      const entries = await Promise.all(
+        keys.map(async (k) => {
+          try {
+            const r = await axiosClient.get(
+              `/stream-sessions/ffmpeg-stat/${encodeURIComponent(k)}`
+            );
+            return [k, r.stat || null];
+          } catch (e) {
+            return [k, null];
+          }
+        })
+      );
+
+      const map = {};
+      entries.forEach(([k, v]) => (map[k] = v));
+      setFfStats(map);
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -140,11 +174,17 @@ const StreamSession = () => {
                 const start = formatDateTime(startIso);
                 const end = getDisplayEnd(s);
 
-                const stats = s.specification || "-";
                 const keyLive = stream.keyStream || "-";
                 const status = s.status || "-";
+                const upperStatus = String(status).toUpperCase();
 
-                const canStop = (String(status).toUpperCase() === "ACTIVE");
+                // ACTIVE: show ffmpeg stat; else show specification
+                const stats =
+                  upperStatus === "ACTIVE"
+                    ? buildStatText(ffStats[keyLive])
+                    : (s.specification || "-");
+
+                const canStop = (upperStatus === "ACTIVE");
 
                 return (
                   <tr key={s.id}>
