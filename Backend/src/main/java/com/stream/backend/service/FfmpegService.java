@@ -1,5 +1,7 @@
 package com.stream.backend.service;
 
+import com.stream.backend.entity.FfmpegStat;
+
 public interface FfmpegService {
 
     /**

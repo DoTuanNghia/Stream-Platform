@@ -1,4 +1,4 @@
-package com.stream.backend.service;
+package com.stream.backend.entity;
 
 public class FfmpegStat {
     public Long frame;

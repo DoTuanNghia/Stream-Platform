@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.stream.backend.entity.FfmpegStat;
 import com.stream.backend.service.FfmpegService;
-import com.stream.backend.service.FfmpegStat;
 
 @Service
 public class FfmpegServiceImpl implements FfmpegService {
