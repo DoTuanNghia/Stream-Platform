@@ -8,6 +8,7 @@ import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
 import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamSessionService;
+import com.stream.backend.youtube.YouTubeLiveService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,20 +25,24 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     private final StreamRepository streamRepository;
     private final DeviceRepository deviceRepository;
     private final FfmpegService ffmpegService;
+    private final YouTubeLiveService youTubeLiveService;
 
     public StreamSessionServiceImpl(
             StreamSessionRepository streamSessionRepository,
             StreamRepository streamRepository,
             DeviceRepository deviceRepository,
-            FfmpegService ffmpegService) {
+            FfmpegService ffmpegService,
+            YouTubeLiveService youTubeLiveService) {
+
         this.streamSessionRepository = streamSessionRepository;
         this.streamRepository = streamRepository;
         this.deviceRepository = deviceRepository;
         this.ffmpegService = ffmpegService;
+        this.youTubeLiveService = youTubeLiveService;
     }
 
     // ==========================
-    // CRUD / QUERY CƠ BẢN
+    // QUERY
     // ==========================
 
     @Override
@@ -56,142 +61,121 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     @Override
-    public StreamSession creatStreamSession(
-            StreamSession requestBody,
-            Integer deviceId,
-            Integer streamId) {
-
-        Device device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new RuntimeException("Device not found with id = " + deviceId));
-
-        Stream stream = streamRepository.findById(streamId)
-                .orElseThrow(() -> new RuntimeException("Stream not found with id = " + streamId));
-
-        // Đảm bảo 1 Stream chỉ có 1 StreamSession (quan hệ 1-1)
-        List<StreamSession> existing = streamSessionRepository.findByStreamId(streamId);
-        if (!existing.isEmpty()) {
-            throw new RuntimeException("This stream already has a StreamSession");
-        }
-
-        StreamSession session = StreamSession.builder()
-                .specification(requestBody.getSpecification())
-                .status(requestBody.getStatus())
-                .device(device)
-                .stream(stream)
-                .build();
-
-        return streamSessionRepository.save(session);
-    }
-
-    @Override
     public StreamSession getStreamSessionById(Integer streamSessionId) {
         return streamSessionRepository.findById(streamSessionId)
                 .orElseThrow(() -> new RuntimeException("StreamSession not found with id = " + streamSessionId));
     }
 
     // ==========================
-    // DỪNG STREAM SESSION
+    // STOP STREAM
     // ==========================
 
     @Override
     @Transactional
     public StreamSession stopStreamSession(StreamSession session) {
 
-        // 0. Dừng FFmpeg nếu đang chạy
+        if (session == null) {
+            throw new RuntimeException("StreamSession is null");
+        }
+
+        String prevStatus = session.getStatus();
+        Stream stream = session.getStream();
+
+        // 1. Stop FFmpeg
         try {
-            if (session != null && session.getStream() != null) {
-                String streamKey = session.getStream().getKeyStream();
+            if (stream != null) {
+                String streamKey = stream.getKeyStream();
                 System.out.println("[STOP] Stopping FFmpeg with streamKey = " + streamKey);
                 ffmpegService.stopStream(streamKey);
             }
         } catch (Exception e) {
-            System.err.println("Không thể dừng FFmpeg cho sessionId = " + session.getId());
+            System.err.println("[STOP] Cannot stop FFmpeg for sessionId=" + session.getId());
             e.printStackTrace();
         }
 
-        // 1. Đổi trạng thái
+        // 2. Transition YouTube -> complete (BEST EFFORT)
+        try {
+            if (stream != null) {
+                youTubeLiveService.transitionBroadcast(stream, "complete");
+            }
+        } catch (Exception ex) {
+            System.err.println("[STOP] transition complete failed (ignored): " + ex.getMessage());
+        }
+
+        // 3. Update session status
         session.setStatus("STOPPED");
+        session.setStoppedAt(LocalDateTime.now());
         streamSessionRepository.save(session);
 
-        // 2. Giảm currentSession của device
-        Device device = session.getDevice();
-        if (device != null) {
-            int current = device.getCurrentSession() != null
-                    ? device.getCurrentSession()
-                    : 0;
-            if (current > 0) {
-                device.setCurrentSession(current - 1);
-                deviceRepository.save(device);
+        // 4. Decrease device.currentSession ONLY if was ACTIVE
+        if ("ACTIVE".equalsIgnoreCase(prevStatus)) {
+            Device device = session.getDevice();
+            if (device != null) {
+                int current = device.getCurrentSession() != null ? device.getCurrentSession() : 0;
+                if (current > 0) {
+                    device.setCurrentSession(current - 1);
+                    deviceRepository.save(device);
+                }
             }
         }
 
         return session;
     }
 
-    // Chuẩn hóa video source (Google Drive link -> direct link, v.v.)
-    private String normalizeVideoSource(String raw) {
-        if (raw == null)
-            return null;
-        raw = raw.trim();
-
-        // Nếu là link Google Drive dạng /file/d/.../view thì convert sang direct link
-        Pattern p = Pattern.compile("https?://drive\\.google\\.com/file/d/([^/]+)/view.*");
-        Matcher m = p.matcher(raw);
-        if (m.matches()) {
-            String fileId = m.group(1);
-            return "https://drive.google.com/uc?export=download&id=" + fileId;
-        }
-
-        // Còn lại giữ nguyên (đường dẫn local, URL khác,...)
-        return raw;
-    }
-
     // ==========================
-    // BẮT ĐẦU STREAM SESSION
+    // START STREAM (MANUAL)
     // ==========================
 
     @Override
     @Transactional
     public StreamSession startSessionForStream(Integer streamId) {
 
-        // 1. Lấy stream từ repo
         Stream stream = streamRepository.findById(streamId)
                 .orElseThrow(() -> new RuntimeException("Stream không tồn tại"));
 
-        // 2. Tìm device rảnh (ID nhỏ nhất)
-        List<Device> devices = deviceRepository.findAvailableDevices();
-        if (devices.isEmpty()) {
-            throw new RuntimeException("Không còn device nào trống");
+        List<StreamSession> list = streamSessionRepository.findByStreamId(streamId);
+        StreamSession session = list.isEmpty() ? null : list.get(0);
+
+        if (session != null && "ACTIVE".equalsIgnoreCase(session.getStatus())) {
+            throw new RuntimeException("Stream đang ACTIVE, không thể Stream Ngay.");
         }
 
-        Device device = devices.get(0);
+        Device device;
+        if (session != null && session.getDevice() != null) {
+            device = session.getDevice();
+        } else {
+            List<Device> devices = deviceRepository.findAvailableDevices();
+            if (devices.isEmpty()) {
+                throw new RuntimeException("Không còn device nào trống");
+            }
+            device = devices.get(0);
+        }
 
-        // 3. Tạo session mới
-        StreamSession session = new StreamSession();
-        session.setStream(stream);
-        session.setDevice(device);
+        if (session == null) {
+            session = new StreamSession();
+            session.setStream(stream);
+            session.setDevice(device);
+            session.setSpecification("Manual start");
+        } else {
+            session.setDevice(device);
+            session.setSpecification("Manual start (override schedule)");
+        }
+
         session.setStatus("ACTIVE");
-        session.setSpecification("Blank");
+        session.setStartedAt(LocalDateTime.now());
+        session.setStoppedAt(null);
+        streamSessionRepository.save(session);
 
-        // Lưu ý:
-        // - Thời gian bắt đầu (timeStart) và duration được lưu trong entity Stream
-        // (trường timeStart, duration), KHÔNG lưu trong StreamSession nữa.
-        // - Ở đây chỉ tạo quan hệ giữa Stream và Device thông qua StreamSession.
-
-        StreamSession saved = streamSessionRepository.save(session);
-
-        // 4. Tăng currentSession trên device
-        device.setCurrentSession(device.getCurrentSession() + 1);
+        Integer cur = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
+        device.setCurrentSession(cur + 1);
         deviceRepository.save(device);
 
-        // 5. Gọi FFmpeg để bắt đầu livestream lên YouTube
         try {
             String streamKey = stream.getKeyStream();
             if (streamKey == null || streamKey.isBlank()) {
-                throw new RuntimeException("Stream key (keyStream) trống, không thể livestream.");
+                throw new RuntimeException("Stream key trống");
             }
 
-            // Lấy dòng đầu tiên KHÔNG RỖNG trong videoList (mỗi dòng 1 video)
             String videoSource = null;
             if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
                 videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
@@ -202,58 +186,46 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                         .orElse(null);
             }
 
-            // videoSource có thể là:
-            // - đường dẫn local: C:\Videos\demo.mp4
-            // - URL Google Drive (direct link):
-            // https://drive.google.com/uc?export=download&id=...
-            // - URL HTTP khác
-            // Nếu videoSource == null => FfmpegService sẽ dùng demoVideo trong config
-            ffmpegService.startStream(
-                    videoSource,
-                    null,
-                    streamKey);
+            ffmpegService.startStream(videoSource, null, streamKey);
+
         } catch (Exception e) {
-            System.err.println("Không thể khởi chạy FFmpeg cho streamId = " + streamId);
+            System.err.println("[START] Cannot start FFmpeg for streamId=" + streamId);
             e.printStackTrace();
         }
 
-        return saved;
+        return session;
     }
+
+    // ==========================
+    // START STREAM (SCHEDULED)
+    // ==========================
 
     @Override
     @Transactional
     public StreamSession startScheduledSession(Integer streamSessionId) {
 
         StreamSession session = streamSessionRepository.findById(streamSessionId)
-                .orElseThrow(() -> new RuntimeException("StreamSession not found with id = " + streamSessionId));
+                .orElseThrow(() -> new RuntimeException("StreamSession not found"));
 
         if (!"SCHEDULED".equalsIgnoreCase(session.getStatus())) {
-            throw new RuntimeException("Session is not SCHEDULED, current=" + session.getStatus());
+            throw new RuntimeException("Session is not SCHEDULED");
         }
 
         Stream stream = session.getStream();
-        if (stream == null)
-            throw new RuntimeException("Session has no Stream");
+        Device device = session.getDevice();
 
-        // set ACTIVE + startedAt trước (để autoStop tính theo startedAt)
         session.setStatus("ACTIVE");
         session.setStartedAt(LocalDateTime.now());
         session.setStoppedAt(null);
         streamSessionRepository.save(session);
 
-        // tăng currentSession
-        Device device = session.getDevice();
-        if (device == null)
-            throw new RuntimeException("Session has no Device");
-
         Integer cur = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
         device.setCurrentSession(cur + 1);
         deviceRepository.save(device);
 
-        // gọi FFmpeg
         String streamKey = stream.getKeyStream();
         if (streamKey == null || streamKey.isBlank()) {
-            throw new RuntimeException("Stream key is empty");
+            throw new RuntimeException("Stream key trống");
         }
 
         String videoSource = null;
@@ -270,4 +242,47 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         return session;
     }
+
+    // ==========================
+    // UTILS
+    // ==========================
+
+    private String normalizeVideoSource(String raw) {
+        if (raw == null)
+            return null;
+        raw = raw.trim();
+
+        Pattern p = Pattern.compile("https?://drive\\.google\\.com/file/d/([^/]+)/view.*");
+        Matcher m = p.matcher(raw);
+        if (m.matches()) {
+            return "https://drive.google.com/uc?export=download&id=" + m.group(1);
+        }
+        return raw;
+    }
+
+    @Override
+    public StreamSession createStreamSession(StreamSession requestBody, Integer deviceId, Integer streamId) {
+
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new RuntimeException("Device not found with id = " + deviceId));
+
+        Stream stream = streamRepository.findById(streamId)
+                .orElseThrow(() -> new RuntimeException("Stream not found with id = " + streamId));
+
+        // 1 Stream chỉ có 1 StreamSession (stream_id UNIQUE)
+        List<StreamSession> existing = streamSessionRepository.findByStreamId(streamId);
+        if (!existing.isEmpty()) {
+            throw new RuntimeException("This stream already has a StreamSession");
+        }
+
+        StreamSession session = StreamSession.builder()
+                .specification(requestBody.getSpecification())
+                .status(requestBody.getStatus())
+                .device(device)
+                .stream(stream)
+                .build();
+
+        return streamSessionRepository.save(session);
+    }
+
 }
