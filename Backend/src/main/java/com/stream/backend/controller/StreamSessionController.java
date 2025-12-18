@@ -66,7 +66,7 @@ public class StreamSessionController {
             @PathVariable("streamId") Integer streamId,
             @RequestBody StreamSession streamSession) {
 
-        var saved = streamSessionService.creatStreamSession(streamSession, deviceId, streamId);
+        var saved = streamSessionService.createStreamSession(streamSession, deviceId, streamId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "StreamSession created successfully");

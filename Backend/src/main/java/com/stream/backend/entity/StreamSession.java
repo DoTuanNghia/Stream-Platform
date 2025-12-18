@@ -24,6 +24,12 @@ public class StreamSession {
     @Column(columnDefinition = "TEXT")
     private String specification;
 
+    /*
+     * 1. SCHEDULED: Có lịch, chưa chạy Ffmpeg
+     * 2. ACTIVE: Đang chạy Ffmpeg
+     * 3. STOPPED: Đã dừng Ffmpeg
+     */
+
     @Column(nullable = false, length = 50)
     private String status;
 

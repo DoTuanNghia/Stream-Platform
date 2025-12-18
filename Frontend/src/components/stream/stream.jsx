@@ -17,25 +17,44 @@ const formatTime = (iso) => {
 
 const Stream = ({ channel }) => {
   const [streams, setStreams] = useState([]);
+  const [streamStatusMap, setStreamStatusMap] = useState({}); // { [streamId]: "ACTIVE" | "SCHEDULED" | "STOPPED" }
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [editingStream, setEditingStream] = useState(null); // stream đang sửa
+  const [editingStream, setEditingStream] = useState(null);
 
   const fetchStreams = async () => {
     if (!channel?.id) {
       setStreams([]);
+      setStreamStatusMap({});
       return;
     }
+
     setLoading(true);
     setError("");
+
     try {
-      const data = await axiosClient.get(`/streams/channel/${channel.id}`);
-      setStreams(data.streams || []);
+      const [streamRes, sessionRes] = await Promise.all([
+        axiosClient.get(`/streams/channel/${channel.id}`),
+        axiosClient.get(`/stream-sessions`),
+      ]);
+
+      const list = streamRes.streams || [];
+      setStreams(list);
+
+      const sessions = sessionRes.streamSessions || [];
+      const map = {};
+      sessions.forEach((s) => {
+        const sid = s?.stream?.id;
+        if (!sid) return;
+        map[sid] = String(s.status || "").toUpperCase();
+      });
+      setStreamStatusMap(map);
     } catch (err) {
       console.error(err);
       if (err.response?.status === 404) {
         setStreams([]);
+        setStreamStatusMap({});
         setError("Kênh này chưa có luồng nào.");
       } else {
         setError("Không tải được danh sách luồng.");
@@ -65,17 +84,24 @@ const Stream = ({ channel }) => {
 
       if (form.startDate && form.startTime) {
         payload.timeStart = `${form.startDate}T${form.startTime}:00`;
+      } else {
+        payload.timeStart = null;
       }
 
-      if (form.duration) {
+      // duration: cho phép -1 (vô hạn). Không dùng if(form.duration) vì -1 là truthy nhưng "" là falsy, cần xử lý rõ
+      if (
+        form.duration !== undefined &&
+        form.duration !== null &&
+        String(form.duration).trim() !== ""
+      ) {
         payload.duration = Number(form.duration);
+      } else {
+        payload.duration = null;
       }
 
       if (editingStream) {
-        // SỬA
         await axiosClient.put(`/streams/${editingStream.id}`, payload);
       } else {
-        // THÊM MỚI
         await axiosClient.post(`/streams/channel/${channel.id}`, payload);
       }
 
@@ -100,18 +126,26 @@ const Stream = ({ channel }) => {
   };
 
   const handleStreamNow = async (stream) => {
+    // chỉ chặn khi ACTIVE (đúng theo yêu cầu)
+    const stt = streamStatusMap[stream.id];
+    if (stt === "ACTIVE") {
+      alert("Luồng đang được stream (ACTIVE), không thể Stream Ngay.");
+      return;
+    }
+
     if (!window.confirm(`Stream ngay luồng: "${stream.name}"?`)) return;
 
     try {
-      const res = await axiosClient.post(
-        `/stream-sessions/start/${stream.id}`
-      );
+      const res = await axiosClient.post(`/stream-sessions/start/${stream.id}`);
       console.log("Start stream response:", res);
 
       alert(
         res.message ||
           `Đã bắt đầu stream trên máy ${res.deviceName || res.deviceId}.`
       );
+
+      // refresh để nút bị disable ngay khi chuyển ACTIVE
+      await fetchStreams();
     } catch (err) {
       console.error(err);
       const msg =
@@ -178,52 +212,72 @@ const Stream = ({ channel }) => {
                 <th>Hẹn giờ</th>
                 <th>Thời gian stream</th>
                 <th>Key live</th>
+                <th>Trạng thái</th>
                 <th>Action</th>
               </tr>
             </thead>
+
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6}>Đang tải...</td>
+                  <td colSpan={7}>Đang tải...</td>
                 </tr>
               ) : streams.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Không có luồng nào.</td>
+                  <td colSpan={7}>Không có luồng nào.</td>
                 </tr>
               ) : (
-                streams.map((st, index) => (
-                  <tr key={st.id}>
-                    <td>{index + 1}</td>
-                    <td>{st.name}</td>
-                    <td>{formatTime(st.timeStart)}</td>
-                    <td>
-                      {st.duration != null ? `${st.duration} phút` : "none"}
-                    </td>
-                    <td className="table__mono">{st.keyStream}</td>
-                    <td>
-                      <div className="table__actions">
-                        <button
-                          className="btn btn--danger"
-                          onClick={() => handleDelete(st.id)}
-                        >
-                          Xóa
-                        </button>
-                        <button
-                          className="btn btn--ghost"
-                          onClick={() => openEditModal(st)}
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          className="btn btn--success"
-                          onClick={() => handleStreamNow(st)}
-                        >
-                          Stream Ngay
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                streams.map((st, index) => {
+                  const status = streamStatusMap[st.id] || "NONE";
+                  const isActive = status === "ACTIVE";
+
+                  return (
+                    <tr key={st.id}>
+                      <td>{index + 1}</td>
+                      <td>{st.name}</td>
+                      <td>{formatTime(st.timeStart)}</td>
+                      <td>
+                        {st.duration === -1
+                          ? "∞"
+                          : st.duration != null
+                          ? `${st.duration} phút`
+                          : "none"}
+                      </td>
+                      <td className="table__mono">{st.keyStream}</td>
+                      <td>{status}</td>
+                      <td>
+                        <div className="table__actions">
+                          <button
+                            className="btn btn--danger"
+                            onClick={() => handleDelete(st.id)}
+                          >
+                            Xóa
+                          </button>
+                          <button
+                            className="btn btn--ghost"
+                            onClick={() => openEditModal(st)}
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            className="btn btn--success"
+                            onClick={() => handleStreamNow(st)}
+                            disabled={isActive}
+                            title={
+                              isActive
+                                ? "Luồng đang ACTIVE, không thể Stream Ngay"
+                                : status === "SCHEDULED"
+                                ? "Luồng đang SCHEDULED, vẫn có thể Stream Ngay"
+                                : ""
+                            }
+                          >
+                            Stream Ngay
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -242,4 +296,3 @@ const Stream = ({ channel }) => {
 };
 
 export default Stream;
-

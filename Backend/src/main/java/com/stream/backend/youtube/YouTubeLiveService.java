@@ -1,15 +1,14 @@
 package com.stream.backend.youtube;
 
-import com.google.api.client.util.DateTime;
 import com.google.api.services.youtube.YouTube;
-import com.google.api.services.youtube.model.*;
+import com.google.api.services.youtube.model.LiveBroadcastListResponse;
+import com.google.api.services.youtube.model.LiveBroadcast;
 import com.stream.backend.entity.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -18,118 +17,55 @@ public class YouTubeLiveService {
     private final YouTube youtube;
 
     /**
-     * Tạo LiveStream + LiveBroadcast (upcoming) + bind lại với nhau.
-     * Trả về streamKey (RTMP stream name).
+     * KHÔNG TẠO LỊCH TRÊN YOUTUBE NỮA.
+     * Bạn tạo lịch thủ công trên YouTube Studio và nhập keyStream vào Stream.
+     *
+     * Giữ method này để tránh vỡ code nơi khác: chỉ validate và trả lại keyStream.
      */
-    public String createScheduledBroadcastForStream(Stream stream) throws IOException {
-
-        // =====================================================
-        // 1. Tạo LiveStream (RTMP Ingestion)
-        // =====================================================
-        LiveStream liveStream = new LiveStream();
-
-        LiveStreamSnippet streamSnippet = new LiveStreamSnippet();
-        streamSnippet.setTitle(stream.getName() + " - Stream");
-        liveStream.setSnippet(streamSnippet);
-
-        CdnSettings cdn = new CdnSettings();
-        cdn.setFormat("1080p");
-        cdn.setResolution("1080p");
-        cdn.setFrameRate("30fps");
-        cdn.setIngestionType("rtmp");
-        liveStream.setCdn(cdn);
-
-        LiveStreamStatus streamStatus = new LiveStreamStatus();
-        streamStatus.setStreamStatus("ready");  
-        liveStream.setStatus(streamStatus);
-
-        LiveStream createdStream = youtube.liveStreams()
-                .insert("snippet,cdn,status", liveStream)
-                .execute();
-
-        String youtubeStreamId = createdStream.getId();
-        String streamKey = createdStream.getCdn().getIngestionInfo().getStreamName();
-
-        // =====================================================
-        // 2. Tạo LiveBroadcast (Upcoming)
-        // =====================================================
-        LiveBroadcast broadcast = new LiveBroadcast();
-
-        LiveBroadcastSnippet snippet = new LiveBroadcastSnippet();
-        snippet.setTitle(stream.getName());
-        snippet.setDescription("Scheduled via Stream Platform");
-
-        // set thời gian bắt đầu
-        if (stream.getTimeStart() != null) {
-            snippet.setScheduledStartTime(toDateTime(stream.getTimeStart()));
+    public String createScheduledBroadcastForStream(Stream stream) {
+        // Không gọi YouTube API ở đây nữa
+        if (stream.getKeyStream() == null || stream.getKeyStream().isBlank()) {
+            throw new RuntimeException("keyStream trống. Hãy tạo lịch trên YouTube Studio và nhập stream key vào hệ thống.");
         }
-
-        // set thời gian kết thúc nếu có duration
-        if (stream.getTimeStart() != null && stream.getDuration() != null && stream.getDuration() > 0) {
-            LocalDateTime end = stream.getTimeStart().plusMinutes(stream.getDuration());
-            snippet.setScheduledEndTime(toDateTime(end));
-        }
-
-        broadcast.setSnippet(snippet);
-
-        // Status: public / unlisted / private
-        LiveBroadcastStatus status = new LiveBroadcastStatus();
-        status.setPrivacyStatus("public");
-        broadcast.setStatus(status);
-
-        // =====================================================
-        // FIX QUAN TRỌNG – TRÁNH LỖI invalidEmbedSetting
-        // =====================================================
-        LiveBroadcastContentDetails contentDetails = new LiveBroadcastContentDetails();
-
-        contentDetails.setEnableDvr(true);
-        contentDetails.setRecordFromStart(true);
-
-        // Một số version có hỗ trợ AutoStart
-        try {
-            contentDetails.setEnableAutoStart(true);
-        } catch (Exception ignored) {
-            // nếu version không hỗ trợ thì bỏ qua
-        }
-
-        broadcast.setContentDetails(contentDetails);
-
-        // =====================================================
-        // 3. Tạo Broadcast trên YouTube
-        // =====================================================
-        LiveBroadcast createdBroadcast = youtube.liveBroadcasts()
-                .insert("snippet,contentDetails,status", broadcast)
-                .execute();
-
-        String youtubeBroadcastId = createdBroadcast.getId();
-
-        // =====================================================
-        // 4. Bind stream ↔ broadcast
-        // =====================================================
-        youtube.liveBroadcasts()
-                .bind(youtubeBroadcastId, "id,contentDetails")
-                .setStreamId(youtubeStreamId)
-                .execute();
-
-        // Lưu vào entity Stream
-        stream.setYoutubeBroadcastId(youtubeBroadcastId);
-        stream.setYoutubeStreamId(youtubeStreamId);
-
-        return streamKey;
+        return stream.getKeyStream();
     }
 
     /**
-     * Chuyển trạng thái broadcast: "live" hoặc "complete"
+     * Transition broadcast: "live" hoặc "complete".
+     * Chỉ gọi được khi stream.youtubeBroadcastId đã có.
      */
     public void transitionBroadcast(Stream stream, String newStatus) throws IOException {
-        if (stream.getYoutubeBroadcastId() == null) return;
+        if (stream == null) return;
+        if (stream.getYoutubeBroadcastId() == null || stream.getYoutubeBroadcastId().isBlank()) return;
 
         youtube.liveBroadcasts()
                 .transition(newStatus, stream.getYoutubeBroadcastId(), "status")
                 .execute();
     }
 
-    private DateTime toDateTime(LocalDateTime ldt) {
-        return new DateTime(ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+    /**
+     * (Tuỳ chọn) Helper: nếu bạn muốn tự "tìm broadcast" do bạn tạo thủ công
+     * theo title (không 100% chính xác nếu trùng tên), có thể dùng để set youtubeBroadcastId.
+     * Không bắt buộc dùng trong demo.
+     */
+    public String findLatestBroadcastIdByTitle(String title) throws IOException {
+        if (title == null || title.isBlank()) return null;
+
+        LiveBroadcastListResponse resp = youtube.liveBroadcasts()
+                .list("id,snippet,status")
+                .setBroadcastStatus("upcoming") // upcoming / active / completed
+                .setMine(true)
+                .setMaxResults(10L)
+                .execute();
+
+        List<LiveBroadcast> items = resp.getItems();
+        if (items == null) return null;
+
+        for (LiveBroadcast b : items) {
+            if (b.getSnippet() != null && title.equalsIgnoreCase(b.getSnippet().getTitle())) {
+                return b.getId();
+            }
+        }
+        return null;
     }
 }

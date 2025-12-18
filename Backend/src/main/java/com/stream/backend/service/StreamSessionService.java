@@ -12,7 +12,7 @@ public interface StreamSessionService {
 
     List<StreamSession> getStreamSessionsByStreamId(Integer streamId);
 
-    StreamSession creatStreamSession(StreamSession streamSession, Integer deviceId, Integer streamId);
+    StreamSession createStreamSession(StreamSession streamSession, Integer deviceId, Integer streamId);
 
     StreamSession stopStreamSession(StreamSession streamSession);
 

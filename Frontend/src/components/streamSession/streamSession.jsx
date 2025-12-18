@@ -15,12 +15,38 @@ const formatDateTime = (iso) => {
   return `${day}/${month} ${hour}:${minute}`;
 };
 
-const calcEndTime = (timeStart, duration) => {
-  if (!timeStart || !duration) return "n/a";
-  const d = new Date(timeStart);
+const calcEndTime = (baseIso, duration) => {
+  if (!baseIso || duration == null) return "n/a";
+  if (duration === -1) return "∞";
+
+  const d = new Date(baseIso);
   if (Number.isNaN(d.getTime())) return "n/a";
-  d.setMinutes(d.getMinutes() + duration);
+
+  d.setMinutes(d.getMinutes() + Number(duration));
   return formatDateTime(d.toISOString());
+};
+
+const getDisplayStart = (session) => {
+  const stream = session?.stream || {};
+  const status = (session?.status || "").toUpperCase();
+
+  // ACTIVE: ưu tiên startedAt (thời điểm chạy thật)
+  if (status === "ACTIVE") return session?.startedAt || stream?.timeStart || null;
+
+  // SCHEDULED / khác: hiển thị lịch
+  return stream?.timeStart || null;
+};
+
+const getDisplayEnd = (session) => {
+  const stream = session?.stream || {};
+  const status = (session?.status || "").toUpperCase();
+
+  const duration = stream?.duration;
+  // ACTIVE: end dựa trên startedAt (chuẩn)
+  if (status === "ACTIVE") return calcEndTime(session?.startedAt || stream?.timeStart, duration);
+
+  // SCHEDULED: end dựa trên timeStart
+  return calcEndTime(stream?.timeStart, duration);
 };
 
 const StreamSession = () => {
@@ -31,18 +57,20 @@ const StreamSession = () => {
     setLoading(true);
     try {
       const data = await axiosClient.get("/stream-sessions");
-      setSessions(
-        (data.streamSessions || []).filter(
-          (s) => s.status && s.status.toUpperCase() !== "STOPPED"
-        )
-      );
+
+      // Hiển thị: ACTIVE + SCHEDULED (ẩn STOPPED)
+      const list = (data.streamSessions || []).filter((s) => {
+        const st = (s.status || "").toUpperCase();
+        return st !== "STOPPED";
+      });
+
+      setSessions(list);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     fetchSessions();
@@ -65,7 +93,7 @@ const StreamSession = () => {
     <section className="card">
       <div className="card__header">
         <div>
-          <h2 className="card__title">Luồng đang hoạt động</h2>
+          <h2 className="card__title">Luồng đang hoạt động / đã hẹn lịch</h2>
           <p className="card__subtitle">
             Reload ngay hoặc tự động sau <strong>7</strong> giây
           </p>
@@ -81,7 +109,7 @@ const StreamSession = () => {
             <tr>
               <th>STT</th>
               <th>Ghi Chú</th>
-              <th>Máy đang live</th>
+              <th>Máy</th>
               <th>Start</th>
               <th>End dự kiến</th>
               <th>Thông số</th>
@@ -90,6 +118,7 @@ const StreamSession = () => {
               <th>Action</th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
@@ -106,11 +135,16 @@ const StreamSession = () => {
 
                 const note = stream.name || "-";
                 const deviceName = device.name || "-";
-                const start = formatDateTime(stream.timeStart);
-                const end = calcEndTime(stream.timeStart, stream.duration);
+
+                const startIso = getDisplayStart(s);
+                const start = formatDateTime(startIso);
+                const end = getDisplayEnd(s);
+
                 const stats = s.specification || "-";
                 const keyLive = stream.keyStream || "-";
                 const status = s.status || "-";
+
+                const canStop = (String(status).toUpperCase() === "ACTIVE");
 
                 return (
                   <tr key={s.id}>
@@ -124,8 +158,10 @@ const StreamSession = () => {
                     <td>{status}</td>
                     <td>
                       <button
-                        className="btn btn--danger"
+                        className={`btn ${canStop ? "btn--danger" : "btn--ghost"}`}
                         onClick={() => handleStop(s.id)}
+                        disabled={!canStop}
+                        title={!canStop ? "Chỉ dừng được khi session đang ACTIVE" : ""}
                       >
                         Ngừng Stream Ngay
                       </button>

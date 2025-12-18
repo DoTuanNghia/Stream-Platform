@@ -13,6 +13,7 @@ import com.stream.backend.repository.ChannelRepository;
 import com.stream.backend.repository.DeviceRepository;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
+import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamService;
 import com.stream.backend.youtube.YouTubeLiveService;
 
@@ -22,18 +23,22 @@ public class StreamServiceImpl implements StreamService {
     private final ChannelRepository channelRepository;
     private final StreamSessionRepository streamSessionRepository;
     private final DeviceRepository deviceRepository;
-    private final YouTubeLiveService youTubeLiveService;   
+    private final YouTubeLiveService youTubeLiveService;
+    private final FfmpegService ffmpegService;
 
     public StreamServiceImpl(StreamRepository streamRepository,
-                             ChannelRepository channelRepository,
-                             StreamSessionRepository streamSessionRepository,
-                             DeviceRepository deviceRepository,
-                             YouTubeLiveService youTubeLiveService) {
+            ChannelRepository channelRepository,
+            StreamSessionRepository streamSessionRepository,
+            DeviceRepository deviceRepository,
+            YouTubeLiveService youTubeLiveService,
+            FfmpegService ffmpegService) {
+
         this.streamRepository = streamRepository;
         this.channelRepository = channelRepository;
         this.streamSessionRepository = streamSessionRepository;
         this.deviceRepository = deviceRepository;
         this.youTubeLiveService = youTubeLiveService;
+        this.ffmpegService = ffmpegService;
     }
 
     @Override
@@ -42,56 +47,93 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
+    @Transactional
     public Stream createStream(Stream stream, Integer channelId) {
+
         Channel channel = channelRepository.findById(channelId)
-                .orElse(null);
+                .orElseThrow(() -> new RuntimeException("Channel not found"));
         stream.setChannel(channel);
 
-        // 1. Gọi YouTube API để tạo schedule + streamKey
+        // 1. Tạo lịch + streamKey trên YouTube
         try {
             String streamKey = youTubeLiveService.createScheduledBroadcastForStream(stream);
             stream.setKeyStream(streamKey);
         } catch (Exception e) {
-            // Tùy strategy: hoặc throw exception, hoặc cho phép tạo stream local thôi
             throw new RuntimeException("Không tạo được lịch YouTube", e);
         }
 
-        // 2. Lưu vào DB (bao gồm keyStream, youtubeBroadcastId, youtubeStreamId)
-        return streamRepository.save(stream);
+        // 2. Lưu Stream
+        Stream savedStream = streamRepository.save(stream);
+
+        // 3. AUTO TẠO StreamSession SCHEDULED (nếu có timeStart & autoStart)
+        if (Boolean.TRUE.equals(savedStream.getAutoStart())
+                && savedStream.getTimeStart() != null
+                && savedStream.getTimeStart().isAfter(java.time.LocalDateTime.now())) {
+
+            // tìm device rảnh
+            List<Device> devices = deviceRepository.findAvailableDevices();
+            if (devices.isEmpty()) {
+                throw new RuntimeException("Không còn device trống để schedule");
+            }
+
+            Device device = devices.get(0);
+
+            StreamSession session = StreamSession.builder()
+                    .stream(savedStream)
+                    .device(device)
+                    .status("SCHEDULED")
+                    .specification("Auto scheduled")
+                    .build();
+
+            streamSessionRepository.save(session);
+        }
+
+        return savedStream;
     }
 
     @Override
     @Transactional
     public void deleteStream(Stream stream) {
 
-        // Lấy thật stream từ DB
         Stream existingStream = streamRepository.findById(stream.getId())
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        // Lấy tất cả session liên quan
         List<StreamSession> sessions = streamSessionRepository.findByStreamId(existingStream.getId());
 
         for (StreamSession session : sessions) {
 
-            // giảm currentSession nếu session đang ACTIVE
-            if (!"STOPPED".equalsIgnoreCase(session.getStatus())) {
-                Device device = session.getDevice();
-                if (device != null) {
-                    int current = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
-                    device.setCurrentSession(Math.max(0, current - 1));
-                    deviceRepository.save(device);
+            // 1. NẾU SESSION ĐANG ACTIVE → PHẢI STOP FFmpeg
+            if ("ACTIVE".equalsIgnoreCase(session.getStatus())) {
+
+                String streamKey = existingStream.getKeyStream();
+                if (streamKey != null && !streamKey.isBlank()) {
+                    ffmpegService.stopStream(streamKey);
+                }
+
+                // transition YouTube về complete (best-effort)
+                try {
+                    youTubeLiveService.transitionBroadcast(existingStream, "complete");
+                } catch (Exception ignore) {
                 }
             }
 
-            // xoá session
+            // 2. GIẢM currentSession CỦA DEVICE
+            Device device = session.getDevice();
+            if (device != null) {
+                int current = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
+                device.setCurrentSession(Math.max(0, current - 1));
+                deviceRepository.save(device);
+            }
+
+            // 3. XOÁ SESSION
             streamSessionRepository.delete(session);
         }
 
-        // cuối cùng xoá stream
+        // 4. XOÁ STREAM
         streamRepository.delete(existingStream);
     }
 
-        @Override
+    @Override
     @Transactional
     public Stream updateStream(Integer id, Stream stream) {
         Stream existing = streamRepository.findById(id)
