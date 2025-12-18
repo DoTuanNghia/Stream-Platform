@@ -26,7 +26,13 @@ public class StreamSession {
 
     @Column(nullable = false, length = 50)
     private String status;
-    
+
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+
+    @Column(name = "stopped_at")
+    private LocalDateTime stoppedAt;
+
     // 1 Device có N StreamSession
     @ManyToOne
     @JoinColumn(name = "device_id", nullable = false)
