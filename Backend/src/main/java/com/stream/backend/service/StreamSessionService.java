@@ -1,6 +1,7 @@
 package com.stream.backend.service;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 
@@ -13,6 +14,8 @@ public interface StreamSessionService {
     Page<StreamSession> getStreamSessionsByDeviceId(Integer deviceId, int page, int size, String sort);
 
     Page<StreamSession> getStreamSessionsByStreamId(Integer streamId, int page, int size, String sort);
+
+    Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds);
 
     StreamSession createStreamSession(StreamSession streamSession, Integer deviceId, Integer streamId);
 

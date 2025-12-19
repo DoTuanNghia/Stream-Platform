@@ -66,3 +66,9 @@
   font-size: 13px;
   white-space: nowrap;
 }
+
+.btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: auto; // quan trọng: vẫn nhận click để alert
+}

@@ -17,10 +17,9 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
 
     Page<StreamSession> findByStreamId(Integer streamId, Pageable pageable);
 
-    // ACTIVE-only (nếu bạn muốn chỉ hiển thị ACTIVE và phân trang)
+    // ACTIVE-only (phân trang cho trang StreamSession)
     Page<StreamSession> findByStatusIgnoreCase(String status, Pageable pageable);
 
-    // Không dùng List: dùng Optional/exists
     Optional<StreamSession> findFirstByStreamId(Integer streamId);
 
     boolean existsByStreamId(Integer streamId);

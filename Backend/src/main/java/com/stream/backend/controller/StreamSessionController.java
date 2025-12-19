@@ -24,10 +24,8 @@ public class StreamSessionController {
         this.ffmpegService = ffmpegService;
     }
 
-    // =========================
-    // PAGING: ALL
     // GET /api/stream-sessions?page=0&size=10&sort=id,desc
-    // =========================
+    // ==> CHỈ ACTIVE (paging)
     @GetMapping("")
     public ResponseEntity<Map<String, Object>> getAllStreamSessions(
             @RequestParam(defaultValue = "0") int page,
@@ -48,9 +46,26 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
-    // =========================
-    // PAGING: BY DEVICE
-    // =========================
+    // NEW: status map cho trang Stream
+    // GET /api/stream-sessions/status-map?streamIds=1,2,3
+    @GetMapping("/status-map")
+    public ResponseEntity<Map<String, Object>> getStatusMap(@RequestParam("streamIds") String streamIds) {
+
+        List<Integer> ids = Arrays.stream(streamIds.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(Integer::valueOf)
+                .collect(Collectors.toList());
+
+        Map<Integer, String> map = streamSessionService.getStatusMapByStreamIds(ids);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Status map fetched successfully");
+        response.put("statusMap", map);
+        response.put("count", map.size());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/device/{deviceId}")
     public ResponseEntity<Map<String, Object>> getStreamSessionByDeviceId(
             @PathVariable("deviceId") Integer deviceId,
@@ -73,9 +88,6 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
-    // =========================
-    // PAGING: BY STREAM
-    // =========================
     @GetMapping("/stream/{streamId}")
     public ResponseEntity<Map<String, Object>> getStreamSessionByStreamId(
             @PathVariable("streamId") Integer streamId,
@@ -97,27 +109,6 @@ public class StreamSessionController {
 
         return ResponseEntity.ok(response);
     }
-
-    // // =========================
-    // // OPTIMIZE: BY STREAM IDS
-    // // GET /api/stream-sessions/by-stream-ids?ids=1,2,3
-    // // =========================
-    // @GetMapping("/by-stream-ids")
-    // public ResponseEntity<Map<String, Object>> getByStreamIds(@RequestParam("ids") String ids) {
-    //     List<Integer> streamIds = Arrays.stream(ids.split(","))
-    //             .map(String::trim)
-    //             .filter(s -> !s.isEmpty())
-    //             .map(Integer::valueOf)
-    //             .collect(Collectors.toList());
-
-    //     List<StreamSession> sessions = streamSessionService.getStreamSessionsByStreamIds(streamIds);
-
-    //     Map<String, Object> response = new HashMap<>();
-    //     response.put("message", "StreamSessions fetched successfully");
-    //     response.put("streamSessions", sessions);
-    //     response.put("count", sessions.size());
-    //     return ResponseEntity.ok(response);
-    // }
 
     @GetMapping("/ffmpeg-stat/{streamKey}")
     public ResponseEntity<Map<String, Object>> getFfmpegStat(@PathVariable("streamKey") String streamKey) {
