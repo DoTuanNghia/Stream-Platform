@@ -36,10 +36,10 @@ public class FfmpegServiceImpl implements FfmpegService {
     private final Map<String, FfmpegStat> statMap = new ConcurrentHashMap<>();
 
     // Parse dòng progress phổ biến của ffmpeg
-    // frame=  245 fps=5.2 q=23.0 size=     604KiB time=00:00:40.50 bitrate= 122.1kbits/s speed=0.863x
+    // frame= 245 fps=5.2 q=23.0 size= 604KiB time=00:00:40.50 bitrate= 122.1kbits/s
+    // speed=0.863x
     private static final Pattern PROGRESS_PATTERN = Pattern.compile(
-            "frame=\\s*(\\d+)\\s+fps=\\s*([0-9.]+)\\s+q=\\s*([0-9.]+)\\s+size=\\s*(\\S+)\\s+time=(\\S+)\\s+bitrate=\\s*(\\S+)\\s+speed=(\\S+)"
-    );
+            "frame=\\s*(\\d+)\\s+fps=\\s*([0-9.]+)\\s+q=\\s*([0-9.]+)\\s+size=\\s*(\\S+)\\s+time=(\\S+)\\s+bitrate=\\s*(\\S+)\\s+speed=(\\S+)");
 
     @Override
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
@@ -76,27 +76,65 @@ public class FfmpegServiceImpl implements FfmpegService {
         try {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
+
+            // realtime + loop vô hạn
             cmd.add("-re");
-            // loop vô hạn video
             cmd.add("-stream_loop");
             cmd.add("-1");
 
+            // input
             cmd.add("-i");
             cmd.add(videoPath);
+
+            // ===== VIDEO: 720p 30fps =====
+
+            // ép scale về 1280x720 và ép fps 30 để ổn định
+            cmd.add("-vf");
+            cmd.add("scale=1280:720,fps=30");
+
+            // encoder CPU
             cmd.add("-c:v");
             cmd.add("libx264");
+
+            // preset cân bằng CPU/chất lượng (CPU yếu hơn nữa thì đổi sang "superfast")
             cmd.add("-preset");
             cmd.add("veryfast");
+
+            // giảm latency cho livestream
+            cmd.add("-tune");
+            cmd.add("zerolatency");
+
+            // tương thích rộng
+            cmd.add("-pix_fmt");
+            cmd.add("yuv420p");
+
+            // GOP 2 giây (30fps * 2 = 60)
+            cmd.add("-g");
+            cmd.add("60");
+            cmd.add("-keyint_min");
+            cmd.add("60");
+            cmd.add("-sc_threshold");
+            cmd.add("0");
+
+            // bitrate hợp lý cho 720p30 (ổn định + nhẹ hơn)
+            cmd.add("-b:v");
+            cmd.add("3000k");
             cmd.add("-maxrate");
             cmd.add("3000k");
             cmd.add("-bufsize");
             cmd.add("6000k");
+
+            // ===== AUDIO =====
             cmd.add("-c:a");
             cmd.add("aac");
             cmd.add("-b:a");
             cmd.add("128k");
             cmd.add("-ar");
             cmd.add("44100");
+            cmd.add("-ac");
+            cmd.add("2");
+
+            // ===== OUTPUT =====
             cmd.add("-f");
             cmd.add("flv");
             cmd.add(fullRtmp);
@@ -173,15 +211,18 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     @Override
     public FfmpegStat getLatestStat(String streamKey) {
-        if (streamKey == null || streamKey.isBlank()) return null;
+        if (streamKey == null || streamKey.isBlank())
+            return null;
         return statMap.get(streamKey);
     }
 
     private FfmpegStat parseProgressLine(String line) {
-        if (line == null) return null;
+        if (line == null)
+            return null;
 
         Matcher m = PROGRESS_PATTERN.matcher(line);
-        if (!m.find()) return null;
+        if (!m.find())
+            return null;
 
         try {
             FfmpegStat s = new FfmpegStat();

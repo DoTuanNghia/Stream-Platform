@@ -4,6 +4,10 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.stream.backend.entity.Channel;
 import com.stream.backend.entity.Device;
@@ -98,38 +102,48 @@ public class StreamServiceImpl implements StreamService {
         Stream existingStream = streamRepository.findById(stream.getId())
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        List<StreamSession> sessions = streamSessionRepository.findByStreamId(existingStream.getId());
+        // Lấy tất cả session theo streamId bằng paging vòng lặp (không dùng List)
+        int page = 0;
+        int size = 200;
+        Page<StreamSession> sessionsPage;
 
-        for (StreamSession session : sessions) {
+        do {
+            sessionsPage = streamSessionRepository.findByStreamId(
+                    existingStream.getId(),
+                    PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
 
-            // 1. NẾU SESSION ĐANG ACTIVE → PHẢI STOP FFmpeg
-            if ("ACTIVE".equalsIgnoreCase(session.getStatus())) {
+            for (StreamSession session : sessionsPage.getContent()) {
 
-                String streamKey = existingStream.getKeyStream();
-                if (streamKey != null && !streamKey.isBlank()) {
-                    ffmpegService.stopStream(streamKey);
+                // 1) Nếu ACTIVE -> stop ffmpeg + transition youtube
+                if ("ACTIVE".equalsIgnoreCase(session.getStatus())) {
+
+                    String streamKey = existingStream.getKeyStream();
+                    if (streamKey != null && !streamKey.isBlank()) {
+                        ffmpegService.stopStream(streamKey);
+                    }
+
+                    try {
+                        youTubeLiveService.transitionBroadcast(existingStream, "complete");
+                    } catch (Exception ignore) {
+                    }
                 }
 
-                // transition YouTube về complete (best-effort)
-                try {
-                    youTubeLiveService.transitionBroadcast(existingStream, "complete");
-                } catch (Exception ignore) {
+                // 2) Giảm currentSession của device
+                Device device = session.getDevice();
+                if (device != null) {
+                    int current = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
+                    device.setCurrentSession(Math.max(0, current - 1));
+                    deviceRepository.save(device);
                 }
+
+                // 3) Xóa session
+                streamSessionRepository.delete(session);
             }
 
-            // 2. GIẢM currentSession CỦA DEVICE
-            Device device = session.getDevice();
-            if (device != null) {
-                int current = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
-                device.setCurrentSession(Math.max(0, current - 1));
-                deviceRepository.save(device);
-            }
+            page++;
+        } while (!sessionsPage.isLast());
 
-            // 3. XOÁ SESSION
-            streamSessionRepository.delete(session);
-        }
-
-        // 4. XOÁ STREAM
+        // 4) Xóa stream
         streamRepository.delete(existingStream);
     }
 
@@ -156,6 +170,46 @@ public class StreamServiceImpl implements StreamService {
         }
 
         return streamRepository.save(existing);
+    }
+
+    @Override
+    public Page<Stream> getStreamsByChannelId(Integer channelId, int page, int size, String sort) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
+        Sort sortObj = parseSort(sort);
+        Pageable pageable = PageRequest.of(safePage, safeSize, sortObj);
+
+        return streamRepository.findByChannelId(channelId, pageable);
+    }
+
+    private Sort parseSort(String sort) {
+        // format: "timeStart,desc" hoặc "id,asc"
+        if (sort == null || sort.trim().isEmpty()) {
+            return Sort.by(Sort.Direction.DESC, "id");
+        }
+        try {
+            String[] parts = sort.split(",");
+            String field = parts[0].trim();
+            Sort.Direction dir = (parts.length > 1)
+                    ? Sort.Direction.fromString(parts[1].trim())
+                    : Sort.Direction.ASC;
+
+            // whitelist field tránh lỗi runtime
+            if (!isAllowedSortField(field))
+                field = "id";
+
+            return Sort.by(dir, field);
+        } catch (Exception e) {
+            return Sort.by(Sort.Direction.DESC, "id");
+        }
+    }
+
+    private boolean isAllowedSortField(String field) {
+        return field.equals("id")
+                || field.equals("timeStart")
+                || field.equals("name")
+                || field.equals("duration");
     }
 
 }

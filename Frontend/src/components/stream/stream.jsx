@@ -4,6 +4,8 @@ import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
 import axiosClient from "../../api/axiosClient";
 
+const PAGE_SIZE = 10;
+
 const formatTime = (iso) => {
   if (!iso) return "none";
   const d = new Date(iso);
@@ -23,10 +25,18 @@ const Stream = ({ channel }) => {
   const [error, setError] = useState("");
   const [editingStream, setEditingStream] = useState(null);
 
-  const fetchStreams = async () => {
+  // Pagination (UI: 1-based)
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+
+  const fetchStreams = async (pageNumber = page) => {
     if (!channel?.id) {
       setStreams([]);
       setStreamStatusMap({});
+      setPage(1);
+      setTotalPages(1);
+      setTotalElements(0);
       return;
     }
 
@@ -34,27 +44,65 @@ const Stream = ({ channel }) => {
     setError("");
 
     try {
-      const [streamRes, sessionRes] = await Promise.all([
-        axiosClient.get(`/streams/channel/${channel.id}`),
-        axiosClient.get(`/stream-sessions`),
-      ]);
+      const bePage = Math.max(0, pageNumber - 1);
+
+      // 1) Fetch streams paging
+      const streamRes = await axiosClient.get(`/streams/channel/${channel.id}`, {
+        params: { page: bePage, size: PAGE_SIZE, sort: "timeStart,desc" },
+      });
 
       const list = streamRes.streams || [];
-      setStreams(list);
+      const tp = Number(streamRes.totalPages ?? 1) || 1;
+      const te = Number(streamRes.totalElements ?? 0) || 0;
 
-      const sessions = sessionRes.streamSessions || [];
-      const map = {};
-      sessions.forEach((s) => {
-        const sid = s?.stream?.id;
-        if (!sid) return;
-        map[sid] = String(s.status || "").toUpperCase();
+      const safePageNumber = Math.min(Math.max(1, pageNumber), tp);
+
+      setStreams(list);
+      setTotalPages(tp);
+      setTotalElements(te);
+      setPage(safePageNumber);
+
+      // 2) Fetch status map theo streamIds của trang hiện tại
+      const ids = list.map((s) => s?.id).filter(Boolean);
+      if (ids.length === 0) {
+        setStreamStatusMap({});
+        return;
+      }
+
+      const idsParam = ids.join(",");
+      const statusRes = await axiosClient.get(`/stream-sessions/status-map`, {
+        params: { streamIds: idsParam },
       });
-      setStreamStatusMap(map);
+
+      const rawMap = statusRes.statusMap || {};
+      const normalized = {};
+
+      // Normalize + fallback theo yêu cầu:
+      // - nếu có trong map => dùng
+      // - nếu không có nhưng timeStart != null => SCHEDULED
+      // - else => NONE
+      list.forEach((st) => {
+        const sid = st?.id;
+        if (!sid) return;
+
+        const fromBe = rawMap[sid];
+        if (fromBe) {
+          normalized[sid] = String(fromBe).toUpperCase();
+        } else if (st?.timeStart) {
+          normalized[sid] = "SCHEDULED";
+        } else {
+          normalized[sid] = "NONE";
+        }
+      });
+
+      setStreamStatusMap(normalized);
     } catch (err) {
       console.error(err);
       if (err.response?.status === 404) {
         setStreams([]);
         setStreamStatusMap({});
+        setTotalPages(1);
+        setTotalElements(0);
         setError("Kênh này chưa có luồng nào.");
       } else {
         setError("Không tải được danh sách luồng.");
@@ -65,10 +113,17 @@ const Stream = ({ channel }) => {
   };
 
   useEffect(() => {
-    fetchStreams();
+    setPage(1);
+    fetchStreams(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel?.id]);
 
-  // Thêm / Sửa stream dùng chung 1 hàm
+  const gotoPage = async (p) => {
+    const next = Math.min(Math.max(1, p), totalPages);
+    if (next === page) return;
+    await fetchStreams(next);
+  };
+
   const handleSaveStream = async (form) => {
     if (!channel?.id) return;
 
@@ -76,10 +131,7 @@ const Stream = ({ channel }) => {
       const payload = {
         name: form.note || "Stream mới",
         keyStream: form.keyLive,
-        videoList:
-          form.videoList && form.videoList.trim() !== ""
-            ? form.videoList
-            : null,
+        videoList: form.videoList && form.videoList.trim() !== "" ? form.videoList : null,
       };
 
       if (form.startDate && form.startTime) {
@@ -88,12 +140,7 @@ const Stream = ({ channel }) => {
         payload.timeStart = null;
       }
 
-      // duration: cho phép -1 (vô hạn). Không dùng if(form.duration) vì -1 là truthy nhưng "" là falsy, cần xử lý rõ
-      if (
-        form.duration !== undefined &&
-        form.duration !== null &&
-        String(form.duration).trim() !== ""
-      ) {
+      if (form.duration !== undefined && form.duration !== null && String(form.duration).trim() !== "") {
         payload.duration = Number(form.duration);
       } else {
         payload.duration = null;
@@ -105,7 +152,7 @@ const Stream = ({ channel }) => {
         await axiosClient.post(`/streams/channel/${channel.id}`, payload);
       }
 
-      await fetchStreams();
+      await fetchStreams(page);
       setIsAddOpen(false);
       setEditingStream(null);
     } catch (err) {
@@ -118,7 +165,7 @@ const Stream = ({ channel }) => {
     if (!window.confirm("Xóa luồng này?")) return;
     try {
       await axiosClient.delete(`/streams/${id}`);
-      await fetchStreams();
+      await fetchStreams(page);
     } catch (err) {
       console.error(err);
       alert("Xóa luồng thất bại.");
@@ -126,10 +173,11 @@ const Stream = ({ channel }) => {
   };
 
   const handleStreamNow = async (stream) => {
-    // chỉ chặn khi ACTIVE (đúng theo yêu cầu)
-    const stt = streamStatusMap[stream.id];
-    if (stt === "ACTIVE") {
-      alert("Luồng đang được stream (ACTIVE), không thể Stream Ngay.");
+    const stt = String(streamStatusMap[stream.id] || "NONE").toUpperCase();
+
+    // Theo yêu cầu: ACTIVE và STOPPED không được Stream Ngay
+    if (stt === "ACTIVE" || stt === "STOPPED") {
+      alert("Luồng không thể Stream Ngay.");
       return;
     }
 
@@ -137,20 +185,12 @@ const Stream = ({ channel }) => {
 
     try {
       const res = await axiosClient.post(`/stream-sessions/start/${stream.id}`);
-      console.log("Start stream response:", res);
+      alert(res.message || `Đã bắt đầu stream trên máy ${res.deviceName || res.deviceId}.`);
 
-      alert(
-        res.message ||
-          `Đã bắt đầu stream trên máy ${res.deviceName || res.deviceId}.`
-      );
-
-      // refresh để nút bị disable ngay khi chuyển ACTIVE
-      await fetchStreams();
+      await fetchStreams(page);
     } catch (err) {
       console.error(err);
-      const msg =
-        err?.response?.data?.message ||
-        "Không thể bắt đầu stream. Vui lòng thử lại.";
+      const msg = err?.response?.data?.message || "Không thể bắt đầu stream. Vui lòng thử lại.";
       alert(msg);
     }
   };
@@ -161,9 +201,7 @@ const Stream = ({ channel }) => {
         <div className="card__header">
           <h2 className="card__title">Danh sách luồng của kênh đang chọn</h2>
         </div>
-        <p className="card__subtitle">
-          Hãy chọn một kênh ở mục “Danh sách kênh”.
-        </p>
+        <p className="card__subtitle">Hãy chọn một kênh ở mục “Danh sách kênh”.</p>
       </section>
     );
   }
@@ -190,8 +228,7 @@ const Stream = ({ channel }) => {
           <div>
             <h2 className="card__title">Danh sách luồng của kênh đang chọn</h2>
             <p className="card__subtitle">
-              Kênh: <strong>{channel.name}</strong>{" "}
-              (<span className="table__mono">{channel.channelCode}</span>)
+              Kênh: <strong>{channel.name}</strong> (<span className="table__mono">{channel.channelCode}</span>)
             </p>
           </div>
           <button className="btn btn--primary" onClick={openAddModal}>
@@ -199,8 +236,16 @@ const Stream = ({ channel }) => {
           </button>
         </div>
 
-        {error && (
-          <p className="card__subtitle card__subtitle--error">{error}</p>
+        {error && <p className="card__subtitle card__subtitle--error">{error}</p>}
+
+        {!loading && totalElements > 0 && (
+          <div className="table__toolbar">
+            <div className="table__pagination">
+              <span className="table__pageinfo">
+                Tổng: <strong>{totalElements}</strong> luồng
+              </span>
+            </div>
+          </div>
         )}
 
         <div className="table-wrapper">
@@ -208,7 +253,7 @@ const Stream = ({ channel }) => {
             <thead>
               <tr>
                 <th>STT</th>
-                <th>Ghi chú</th>
+                <th>Tên luồng</th>
                 <th>Hẹn giờ</th>
                 <th>Thời gian stream</th>
                 <th>Key live</th>
@@ -228,47 +273,39 @@ const Stream = ({ channel }) => {
                 </tr>
               ) : (
                 streams.map((st, index) => {
-                  const status = streamStatusMap[st.id] || "NONE";
-                  const isActive = status === "ACTIVE";
+                  const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
+                  const blocked = status === "ACTIVE" || status === "STOPPED";
 
                   return (
                     <tr key={st.id}>
-                      <td>{index + 1}</td>
+                      <td>{(page - 1) * PAGE_SIZE + index + 1}</td>
                       <td>{st.name}</td>
                       <td>{formatTime(st.timeStart)}</td>
                       <td>
-                        {st.duration === -1
-                          ? "∞"
-                          : st.duration != null
-                          ? `${st.duration} phút`
-                          : "none"}
+                        {st.duration === -1 ? "∞" : st.duration != null ? `${st.duration} phút` : "none"}
                       </td>
                       <td className="table__mono">{st.keyStream}</td>
                       <td>{status}</td>
                       <td>
                         <div className="table__actions">
-                          <button
-                            className="btn btn--danger"
-                            onClick={() => handleDelete(st.id)}
-                          >
+                          <button className="btn btn--danger" onClick={() => handleDelete(st.id)}>
                             Xóa
                           </button>
-                          <button
-                            className="btn btn--ghost"
-                            onClick={() => openEditModal(st)}
-                          >
+                          <button className="btn btn--ghost" onClick={() => openEditModal(st)}>
                             Sửa
                           </button>
                           <button
-                            className="btn btn--success"
-                            onClick={() => handleStreamNow(st)}
-                            disabled={isActive}
+                            className={`btn btn--success ${blocked ? "btn--disabled" : ""}`}
+                            onClick={() => handleStreamNow(st)}   // vẫn gọi bình thường
+                            aria-disabled={blocked}
                             title={
-                              isActive
-                                ? "Luồng đang ACTIVE, không thể Stream Ngay"
+                              blocked
+                                ? status === "ACTIVE"
+                                  ? "Luồng đang ACTIVE, không thể Stream Ngay"
+                                  : "Luồng đã STOPPED, không thể Stream Ngay"
                                 : status === "SCHEDULED"
-                                ? "Luồng đang SCHEDULED, vẫn có thể Stream Ngay"
-                                : ""
+                                  ? "Luồng đang SCHEDULED, có thể Stream Ngay"
+                                  : ""
                             }
                           >
                             Stream Ngay
@@ -282,6 +319,28 @@ const Stream = ({ channel }) => {
             </tbody>
           </table>
         </div>
+
+        {!loading && totalElements > 0 && (
+          <div className="table__toolbar table__toolbar--bottom">
+            <div className="table__pagination">
+              <button className="btn btn--ghost" onClick={() => gotoPage(1)} disabled={page <= 1}>
+                First
+              </button>
+              <button className="btn btn--ghost" onClick={() => gotoPage(page - 1)} disabled={page <= 1}>
+                Prev
+              </button>
+              <span className="table__pageinfo">
+                <strong>{page}</strong> / {totalPages}
+              </span>
+              <button className="btn btn--ghost" onClick={() => gotoPage(page + 1)} disabled={page >= totalPages}>
+                Next
+              </button>
+              <button className="btn btn--ghost" onClick={() => gotoPage(totalPages)} disabled={page >= totalPages}>
+                Last
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <AddStream

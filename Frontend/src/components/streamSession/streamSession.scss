@@ -11,7 +11,8 @@
   &__header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 12px;
   }
 
@@ -26,4 +27,47 @@
     color: #9ca3af;
     margin-top: 4px;
   }
+}
+
+/* Scroll ngang chắc chắn */
+.table-wrapper {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch;
+
+  /* Quan trọng: nền của vùng scroll giống nền table để không bị “đen xì” */
+  background: #020617;
+}
+
+/* Sửa lỗi vùng đen sau Action:
+   - width: 100% để table phủ hết container
+   - min-width để khi màn hình nhỏ thì vẫn tràn và có scroll */
+.table {
+  width: 100% !important;
+  min-width: 1300px; /* bảng nhiều cột -> nhỏ sẽ scroll */
+  background: #020617;
+}
+
+/* (Tuỳ chọn) giữ header dính nền */
+.table thead {
+  background: #111827;
+}
+
+/* Pagination UI */
+.table__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 12px;
+}
+
+.table__pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table__pageinfo {
+  color: #cbd5e1;
+  font-size: 13px;
+  white-space: nowrap;
 }

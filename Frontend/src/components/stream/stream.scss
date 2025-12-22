@@ -21,3 +21,54 @@
     color: #f9fafb;
   }
 }
+
+/* ===== Scroll ngang cho table khi màn hình nhỏ ===== */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto; // tạo thanh scroll ngang
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ép bảng có chiều rộng tối thiểu để nhỏ là phải scroll */
+.table {
+  width: max-content;   // quan trọng: table không tự co về 100%
+  min-width: 1200px;    // tăng lên để chắc chắn tràn khi thu nhỏ
+}
+
+/* action không bị xuống dòng, dễ bấm */
+.table__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* ===== Pagination UI ===== */
+.table__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 12px;
+
+  &--bottom {
+    margin: 12px 0 0;
+  }
+}
+
+.table__pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table__pageinfo {
+  color: #cbd5e1;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: auto; // quan trọng: vẫn nhận click để alert
+}

@@ -1,12 +1,17 @@
 package com.stream.backend.service;
 
 import com.stream.backend.entity.Channel;
-import java.util.List;
-
+import org.springframework.data.domain.Page;
 
 public interface ChannelService {
-    public List<Channel> getAllChannels();
-    public List<Channel> getChannelsByUserId(Integer userId);
-    public Channel createChannel(Integer userId, Channel channel);
-    public void deleteChannel(Integer channelId);
+
+    Page<Channel> getAllChannels(int page, int size, String sort);
+
+    Page<Channel> getChannelsByUserId(Integer userId, int page, int size, String sort);
+
+    Channel createChannel(Integer userId, Channel channel);
+
+    void deleteChannel(Integer channelId);
+
+    boolean existsChannel(Integer channelId);
 }

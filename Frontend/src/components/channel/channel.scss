@@ -11,7 +11,8 @@
   &__header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 12px;
   }
 
@@ -20,4 +21,42 @@
     font-weight: 600;
     color: #f9fafb;
   }
+}
+
+/* ===== Scroll ngang chắc chắn (override shared-table nếu cần) ===== */
+.table-wrapper {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: max-content;
+  min-width: 900px; // bảng channel ít cột hơn stream
+}
+
+.table__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* ===== Pagination UI ===== */
+.table__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 12px;
+}
+
+.table__pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table__pageinfo {
+  color: #cbd5e1;
+  font-size: 13px;
+  white-space: nowrap;
 }

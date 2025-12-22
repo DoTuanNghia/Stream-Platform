@@ -3,8 +3,13 @@
 .table-wrapper {
   margin-top: 8px;
   border-radius: 10px;
-  overflow: hidden;
   border: 1px solid #1f2937;
+
+  /* Quan trọng: không chặn overflow-x để còn scroll ngang */
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {

@@ -1,7 +1,9 @@
 // src/components/streamSession/streamSession.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./streamSession.scss";
 import axiosClient from "../../api/axiosClient";
+
+const PAGE_SIZE = 10;
 
 const formatDateTime = (iso) => {
   if (!iso) return "n/a";
@@ -30,22 +32,16 @@ const getDisplayStart = (session) => {
   const stream = session?.stream || {};
   const status = (session?.status || "").toUpperCase();
 
-  // ACTIVE: ưu tiên startedAt (thời điểm chạy thật)
   if (status === "ACTIVE") return session?.startedAt || stream?.timeStart || null;
-
-  // SCHEDULED / khác: hiển thị lịch
   return stream?.timeStart || null;
 };
 
 const getDisplayEnd = (session) => {
   const stream = session?.stream || {};
   const status = (session?.status || "").toUpperCase();
-
   const duration = stream?.duration;
-  // ACTIVE: end dựa trên startedAt (chuẩn)
-  if (status === "ACTIVE") return calcEndTime(session?.startedAt || stream?.timeStart, duration);
 
-  // SCHEDULED: end dựa trên timeStart
+  if (status === "ACTIVE") return calcEndTime(session?.startedAt || stream?.timeStart, duration);
   return calcEndTime(stream?.timeStart, duration);
 };
 
@@ -53,6 +49,11 @@ const StreamSession = () => {
   const [sessions, setSessions] = useState([]);
   const [ffStats, setFfStats] = useState({}); // { [streamKey]: stat }
   const [loading, setLoading] = useState(false);
+
+  // Pagination (UI 1-based)
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
 
   const buildStatText = (stat) => {
     if (!stat) return "-";
@@ -64,26 +65,47 @@ const StreamSession = () => {
     return `frame=${frame} fps=${fps} q=${q} size=${size} bitrate=${bitrate}`;
   };
 
-  const fetchSessions = async () => {
+  const fetchSessions = async (pageNumber = page) => {
     setLoading(true);
     try {
-      const data = await axiosClient.get("/stream-sessions");
+      const bePage = Math.max(0, pageNumber - 1);
+
+      // Paging backend
+      const data = await axiosClient.get("/stream-sessions", {
+        params: { page: bePage, size: PAGE_SIZE, sort: "id,desc" },
+      });
+
+      const rawList = data.streamSessions || [];
 
       // Hiển thị: ACTIVE + SCHEDULED (ẩn STOPPED)
-      const list = (data.streamSessions || []).filter((s) => {
+      const list = rawList.filter((s) => {
         const st = (s.status || "").toUpperCase();
         return st !== "STOPPED";
       });
 
-      setSessions(list);
+      const tp = Number(data.totalPages ?? 1) || 1;
+      const te = Number(data.totalElements ?? 0) || 0;
 
-      // Lấy stat theo streamKey (chỉ cần cho ACTIVE, nhưng lấy luôn cũng được)
-      const keys = list
+      const safePage = Math.min(Math.max(1, pageNumber), tp);
+
+      setSessions(list);
+      setTotalPages(tp);
+      setTotalElements(te);
+      setPage(safePage);
+
+      // Chỉ lấy stat cho ACTIVE ở trang hiện tại (tối ưu)
+      const activeKeys = list
+        .filter((s) => String(s.status || "").toUpperCase() === "ACTIVE")
         .map((s) => (s.stream?.keyStream || "").trim())
         .filter(Boolean);
 
+      if (activeKeys.length === 0) {
+        setFfStats({});
+        return;
+      }
+
       const entries = await Promise.all(
-        keys.map(async (k) => {
+        activeKeys.map(async (k) => {
           try {
             const r = await axiosClient.get(
               `/stream-sessions/ffmpeg-stat/${encodeURIComponent(k)}`
@@ -98,7 +120,6 @@ const StreamSession = () => {
       const map = {};
       entries.forEach(([k, v]) => (map[k] = v));
       setFfStats(map);
-
     } catch (err) {
       console.error(err);
     } finally {
@@ -107,42 +128,103 @@ const StreamSession = () => {
   };
 
   useEffect(() => {
-    fetchSessions();
-    const timer = setInterval(fetchSessions, 7000);
+    fetchSessions(1);
+    // auto refresh: giữ nguyên trang hiện tại
+    const timer = setInterval(() => fetchSessions(page), 7000);
     return () => clearInterval(timer);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  const gotoPage = async (p) => {
+    const next = Math.min(Math.max(1, p), totalPages);
+    if (next === page) return;
+    setPage(next); // trigger useEffect fetch
+  };
 
   const handleStop = async (id) => {
     if (!window.confirm("Ngừng Stream ngay?")) return;
     try {
       await axiosClient.post(`/stream-sessions/${id}`);
-      fetchSessions();
+      await fetchSessions(page);
     } catch (err) {
       console.error(err);
       alert("Ngừng Stream thất bại.");
     }
   };
 
+  const pageInfoText = useMemo(() => {
+    if (!totalElements) return "";
+    return `Trang ${page}/${totalPages} — Tổng ${totalElements} sessions`;
+  }, [page, totalPages, totalElements]);
+
   return (
     <section className="card">
       <div className="card__header">
         <div>
-          <h2 className="card__title">Luồng đang hoạt động / đã hẹn lịch</h2>
+          <h2 className="card__title">Luồng đang hoạt động</h2>
           <p className="card__subtitle">
-            Reload ngay hoặc tự động sau <strong>7</strong> giây
+            {pageInfoText || (
+              <>
+                Reload ngay hoặc tự động sau <strong>7</strong> giây
+              </>
+            )}
           </p>
         </div>
-        <button className="btn btn--ghost" onClick={fetchSessions}>
-          Reload ngay
-        </button>
+
+        <div className="card__headerActions">
+          <button className="btn btn--ghost" onClick={() => fetchSessions(page)}>
+            Reload ngay
+          </button>
+        </div>
       </div>
+
+      {/* Pagination */}
+      {!loading && totalElements > 0 && (
+        <div className="table__toolbar">
+          <div className="table__pagination">
+            <button
+              className="btn btn--ghost"
+              onClick={() => gotoPage(1)}
+              disabled={page <= 1}
+            >
+              First
+            </button>
+            <button
+              className="btn btn--ghost"
+              onClick={() => gotoPage(page - 1)}
+              disabled={page <= 1}
+            >
+              Prev
+            </button>
+
+            <span className="table__pageinfo">
+              <strong>{page}</strong> / {totalPages}
+            </span>
+
+            <button
+              className="btn btn--ghost"
+              onClick={() => gotoPage(page + 1)}
+              disabled={page >= totalPages}
+            >
+              Next
+            </button>
+            <button
+              className="btn btn--ghost"
+              onClick={() => gotoPage(totalPages)}
+              disabled={page >= totalPages}
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="table-wrapper">
         <table className="table table--small">
           <thead>
             <tr>
               <th>STT</th>
-              <th>Ghi Chú</th>
+              <th>Tên luồng</th>
               <th>Máy</th>
               <th>Start</th>
               <th>End dự kiến</th>
@@ -178,17 +260,17 @@ const StreamSession = () => {
                 const status = s.status || "-";
                 const upperStatus = String(status).toUpperCase();
 
-                // ACTIVE: show ffmpeg stat; else show specification
                 const stats =
                   upperStatus === "ACTIVE"
                     ? buildStatText(ffStats[keyLive])
-                    : (s.specification || "-");
+                    : s.specification || "-";
 
-                const canStop = (upperStatus === "ACTIVE");
+                const canStop = upperStatus === "ACTIVE";
 
                 return (
                   <tr key={s.id}>
-                    <td>{index + 1}</td>
+                    {/* STT theo toàn cục */}
+                    <td>{(page - 1) * PAGE_SIZE + index + 1}</td>
                     <td>{note}</td>
                     <td>{deviceName}</td>
                     <td>{start}</td>

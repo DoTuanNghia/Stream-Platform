@@ -24,10 +24,10 @@ public class Device {
     private String name;
 
     @Column(name = "current_session", nullable = false)
-    private Integer currentSession = 0;     // số session đang chạy trên máy
+    private Integer currentSession;     // số session đang chạy trên máy
 
     @Column(name = "total_session", nullable = false)
-    private Integer totalSession = 10;       // tối đa session cho phép
+    private Integer totalSession;       // tối đa session cho phép
 
     @OneToMany(mappedBy = "device")
     @JsonIgnore

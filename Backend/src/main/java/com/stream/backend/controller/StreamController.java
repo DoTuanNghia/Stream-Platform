@@ -2,6 +2,7 @@ package com.stream.backend.controller;
 
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.stream.backend.entity.Stream;
 import com.stream.backend.service.StreamService;
@@ -29,19 +30,35 @@ public class StreamController {
     }
 
     @GetMapping("/channel/{channelId}")
-    public ResponseEntity<Map<String, Object>> getStreamsByChannelId(@PathVariable("channelId") Integer channelId) {
-        var streams = streamService.getStreamsByChannelId(channelId);
+    public ResponseEntity<Map<String, Object>> getStreamsByChannelId(
+            @PathVariable("channelId") Integer channelId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "timeStart,desc") String sort) {
+        var pageData = streamService.getStreamsByChannelId(channelId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
 
-        if (streams == null || streams.isEmpty()) {
+        if (pageData.isEmpty()) {
             response.put("message", "No stream found for channel");
             response.put("channelId", channelId);
+            response.put("streams", pageData.getContent());
+            response.put("page", pageData.getNumber());
+            response.put("size", pageData.getSize());
+            response.put("totalElements", pageData.getTotalElements());
+            response.put("totalPages", pageData.getTotalPages());
+            response.put("last", pageData.isLast());
             return ResponseEntity.status(404).body(response);
         }
 
         response.put("message", "Streams fetched successfully");
-        response.put("streams", streams);
+        response.put("streams", pageData.getContent());
+        response.put("page", pageData.getNumber());
+        response.put("size", pageData.getSize());
+        response.put("totalElements", pageData.getTotalElements());
+        response.put("totalPages", pageData.getTotalPages());
+        response.put("last", pageData.isLast());
+
         return ResponseEntity.ok(response);
     }
 

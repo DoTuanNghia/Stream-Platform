@@ -9,12 +9,19 @@ import com.stream.backend.repository.StreamSessionRepository;
 import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamSessionService;
 import com.stream.backend.youtube.YouTubeLiveService;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,23 +48,71 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         this.youTubeLiveService = youTubeLiveService;
     }
 
-    // ==========================
-    // QUERY
-    // ==========================
-
     @Override
-    public List<StreamSession> getAllStreamSessions() {
-        return streamSessionRepository.findAll();
+    public Page<StreamSession> getAllStreamSessions(int page, int size, String sort) {
+        Pageable pageable = buildPageable(page, size, sort);
+        // CHỈ ACTIVE để hiển thị + phân trang trang StreamSession
+        return streamSessionRepository.findByStatusIgnoreCase("ACTIVE", pageable);
     }
 
     @Override
-    public List<StreamSession> getStreamSessionsByDeviceId(Integer deviceId) {
-        return streamSessionRepository.findByDeviceId(deviceId);
+    public Page<StreamSession> getStreamSessionsByDeviceId(Integer deviceId, int page, int size, String sort) {
+        Pageable pageable = buildPageable(page, size, sort);
+        // Nếu bạn cũng muốn device chỉ ACTIVE thì đổi sang query theo status + device, còn hiện tại giữ nguyên
+        return streamSessionRepository.findByDeviceId(deviceId, pageable);
     }
 
     @Override
-    public List<StreamSession> getStreamSessionsByStreamId(Integer streamId) {
-        return streamSessionRepository.findByStreamId(streamId);
+    public Page<StreamSession> getStreamSessionsByStreamId(Integer streamId, int page, int size, String sort) {
+        Pageable pageable = buildPageable(page, size, sort);
+        return streamSessionRepository.findByStreamId(streamId, pageable);
+    }
+
+    @Override
+    public Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds) {
+        Map<Integer, String> map = new LinkedHashMap<>();
+        if (streamIds == null || streamIds.isEmpty()) return map;
+
+        for (Integer streamId : streamIds) {
+            if (streamId == null) continue;
+            StreamSession ss = streamSessionRepository.findFirstByStreamId(streamId).orElse(null);
+            if (ss != null && ss.getStatus() != null) {
+                map.put(streamId, ss.getStatus().toUpperCase());
+            }
+        }
+        return map;
+    }
+
+    private Pageable buildPageable(int page, int size, String sort) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        Sort sortObj = parseSort(sort);
+        return PageRequest.of(safePage, safeSize, sortObj);
+    }
+
+    private Sort parseSort(String sort) {
+        if (sort == null || sort.trim().isEmpty()) {
+            return Sort.by(Sort.Direction.DESC, "id");
+        }
+        try {
+            String[] parts = sort.split(",");
+            String field = parts[0].trim();
+            Sort.Direction dir = (parts.length > 1)
+                    ? Sort.Direction.fromString(parts[1].trim())
+                    : Sort.Direction.ASC;
+
+            if (!isAllowedSortField(field)) field = "id";
+            return Sort.by(dir, field);
+        } catch (Exception e) {
+            return Sort.by(Sort.Direction.DESC, "id");
+        }
+    }
+
+    private boolean isAllowedSortField(String field) {
+        return "id".equals(field)
+                || "status".equals(field)
+                || "startedAt".equals(field)
+                || "stoppedAt".equals(field);
     }
 
     @Override
@@ -66,22 +121,16 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                 .orElseThrow(() -> new RuntimeException("StreamSession not found with id = " + streamSessionId));
     }
 
-    // ==========================
-    // STOP STREAM
-    // ==========================
-
     @Override
     @Transactional
     public StreamSession stopStreamSession(StreamSession session) {
 
-        if (session == null) {
-            throw new RuntimeException("StreamSession is null");
-        }
+        if (session == null) throw new RuntimeException("StreamSession is null");
 
         String prevStatus = session.getStatus();
         Stream stream = session.getStream();
 
-        // 1. Stop FFmpeg
+        // 1) Stop FFmpeg
         try {
             if (stream != null) {
                 String streamKey = stream.getKeyStream();
@@ -93,21 +142,19 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             e.printStackTrace();
         }
 
-        // 2. Transition YouTube -> complete (BEST EFFORT)
+        // 2) Transition YouTube -> complete (best effort)
         try {
-            if (stream != null) {
-                youTubeLiveService.transitionBroadcast(stream, "complete");
-            }
+            if (stream != null) youTubeLiveService.transitionBroadcast(stream, "complete");
         } catch (Exception ex) {
             System.err.println("[STOP] transition complete failed (ignored): " + ex.getMessage());
         }
 
-        // 3. Update session status
+        // 3) Update status STOPPED
         session.setStatus("STOPPED");
         session.setStoppedAt(LocalDateTime.now());
         streamSessionRepository.save(session);
 
-        // 4. Decrease device.currentSession ONLY if was ACTIVE
+        // 4) Decrease device.currentSession ONLY if was ACTIVE
         if ("ACTIVE".equalsIgnoreCase(prevStatus)) {
             Device device = session.getDevice();
             if (device != null) {
@@ -118,13 +165,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                 }
             }
         }
-
         return session;
     }
-
-    // ==========================
-    // START STREAM (MANUAL)
-    // ==========================
 
     @Override
     @Transactional
@@ -133,9 +175,9 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         Stream stream = streamRepository.findById(streamId)
                 .orElseThrow(() -> new RuntimeException("Stream không tồn tại"));
 
-        List<StreamSession> list = streamSessionRepository.findByStreamId(streamId);
-        StreamSession session = list.isEmpty() ? null : list.get(0);
+        StreamSession session = streamSessionRepository.findFirstByStreamId(streamId).orElse(null);
 
+        // chặn ACTIVE (STOPPED vẫn chặn ở FE theo yêu cầu)
         if (session != null && "ACTIVE".equalsIgnoreCase(session.getStatus())) {
             throw new RuntimeException("Stream đang ACTIVE, không thể Stream Ngay.");
         }
@@ -145,9 +187,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             device = session.getDevice();
         } else {
             List<Device> devices = deviceRepository.findAvailableDevices();
-            if (devices.isEmpty()) {
-                throw new RuntimeException("Không còn device nào trống");
-            }
+            if (devices.isEmpty()) throw new RuntimeException("Không còn device nào trống");
             device = devices.get(0);
         }
 
@@ -172,9 +212,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         try {
             String streamKey = stream.getKeyStream();
-            if (streamKey == null || streamKey.isBlank()) {
-                throw new RuntimeException("Stream key trống");
-            }
+            if (streamKey == null || streamKey.isBlank()) throw new RuntimeException("Stream key trống");
 
             String videoSource = null;
             if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
@@ -187,7 +225,6 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             }
 
             ffmpegService.startStream(videoSource, null, streamKey);
-
         } catch (Exception e) {
             System.err.println("[START] Cannot start FFmpeg for streamId=" + streamId);
             e.printStackTrace();
@@ -195,10 +232,6 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         return session;
     }
-
-    // ==========================
-    // START STREAM (SCHEDULED)
-    // ==========================
 
     @Override
     @Transactional
@@ -224,9 +257,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         deviceRepository.save(device);
 
         String streamKey = stream.getKeyStream();
-        if (streamKey == null || streamKey.isBlank()) {
-            throw new RuntimeException("Stream key trống");
-        }
+        if (streamKey == null || streamKey.isBlank()) throw new RuntimeException("Stream key trống");
 
         String videoSource = null;
         if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
@@ -239,17 +270,11 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         }
 
         ffmpegService.startStream(videoSource, null, streamKey);
-
         return session;
     }
 
-    // ==========================
-    // UTILS
-    // ==========================
-
     private String normalizeVideoSource(String raw) {
-        if (raw == null)
-            return null;
+        if (raw == null) return null;
         raw = raw.trim();
 
         Pattern p = Pattern.compile("https?://drive\\.google\\.com/file/d/([^/]+)/view.*");
@@ -269,9 +294,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         Stream stream = streamRepository.findById(streamId)
                 .orElseThrow(() -> new RuntimeException("Stream not found with id = " + streamId));
 
-        // 1 Stream chỉ có 1 StreamSession (stream_id UNIQUE)
-        List<StreamSession> existing = streamSessionRepository.findByStreamId(streamId);
-        if (!existing.isEmpty()) {
+        if (streamSessionRepository.existsByStreamId(streamId)) {
             throw new RuntimeException("This stream already has a StreamSession");
         }
 
@@ -284,5 +307,4 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         return streamSessionRepository.save(session);
     }
-
 }
