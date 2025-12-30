@@ -77,18 +77,17 @@ public class FfmpegServiceImpl implements FfmpegService {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
 
-            // realtime + loop vô hạn
+            // ===== INPUT =====
+            // đọc realtime + loop vô hạn
             cmd.add("-re");
             cmd.add("-stream_loop");
             cmd.add("-1");
 
-            // input
             cmd.add("-i");
             cmd.add(videoPath);
 
-            // ===== VIDEO: 720p 30fps =====
-
-            // ép scale về 1280x720 và ép fps 30 để ổn định
+            // ===== VIDEO =====
+            // scale + ép fps để ổn định ingest
             cmd.add("-vf");
             cmd.add("scale=1280:720,fps=30");
 
@@ -96,19 +95,20 @@ public class FfmpegServiceImpl implements FfmpegService {
             cmd.add("-c:v");
             cmd.add("libx264");
 
-            // preset cân bằng CPU/chất lượng (CPU yếu hơn nữa thì đổi sang "superfast")
+            // preset (giữ veryfast, nhiều stream có thể hạ superfast)
             cmd.add("-preset");
             cmd.add("veryfast");
 
-            // giảm latency cho livestream
+            // giảm latency
             cmd.add("-tune");
             cmd.add("zerolatency");
 
-            // tương thích rộng
+            // tương thích youtube
             cmd.add("-pix_fmt");
             cmd.add("yuv420p");
 
-            // GOP 2 giây (30fps * 2 = 60)
+            // ===== GOP =====
+            // 2s keyframe (30fps * 2)
             cmd.add("-g");
             cmd.add("60");
             cmd.add("-keyint_min");
@@ -116,13 +116,23 @@ public class FfmpegServiceImpl implements FfmpegService {
             cmd.add("-sc_threshold");
             cmd.add("0");
 
-            // bitrate hợp lý cho 720p30 (ổn định + nhẹ hơn)
+            // ===== RATE CONTROL (CBR THẬT) =====
             cmd.add("-b:v");
+            cmd.add("3000k");
+            cmd.add("-minrate");
             cmd.add("3000k");
             cmd.add("-maxrate");
             cmd.add("3000k");
             cmd.add("-bufsize");
             cmd.add("6000k");
+
+            // ÉP CBR + padding để bitrate KHÔNG tụt
+            cmd.add("-x264-params");
+            cmd.add("nal-hrd=cbr:filler=1:force-cfr=1");
+
+            // ép fps đầu ra (CFR)
+            cmd.add("-r");
+            cmd.add("30");
 
             // ===== AUDIO =====
             cmd.add("-c:a");
@@ -137,6 +147,11 @@ public class FfmpegServiceImpl implements FfmpegService {
             // ===== OUTPUT =====
             cmd.add("-f");
             cmd.add("flv");
+
+            // tránh giật bitrate khi push RTMP
+            cmd.add("-flvflags");
+            cmd.add("no_duration_filesize");
+
             cmd.add(fullRtmp);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);

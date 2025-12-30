@@ -128,12 +128,18 @@ const StreamSession = () => {
   };
 
   useEffect(() => {
-    fetchSessions(1);
-    // auto refresh: giữ nguyên trang hiện tại
-    const timer = setInterval(() => fetchSessions(page), 7000);
+    // Mỗi khi page đổi, fetch đúng page đó
+    fetchSessions(page);
+
+    // Auto refresh đúng trang hiện tại
+    const timer = setInterval(() => {
+      fetchSessions(page);
+    }, 7000);
+
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
+
 
   const gotoPage = async (p) => {
     const next = Math.min(Math.max(1, p), totalPages);
