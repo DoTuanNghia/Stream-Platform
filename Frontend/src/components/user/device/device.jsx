@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./device.scss";
-import axiosClient from "../../api/axiosClient";
+import axiosClient from "../../../api/axiosClient";
 
 const Device = () => {
   const [devices, setDevices] = useState([]);

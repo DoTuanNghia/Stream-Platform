@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
-import axiosClient from "../../api/axiosClient";
+import axiosClient from "../../../api/axiosClient.js";
 
 const PAGE_SIZE = 10;
 

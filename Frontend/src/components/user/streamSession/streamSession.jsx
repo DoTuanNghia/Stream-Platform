@@ -1,7 +1,7 @@
 // src/components/streamSession/streamSession.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import "./streamSession.scss";
-import axiosClient from "../../api/axiosClient";
+import axiosClient from "../../../api/axiosClient";
 
 const PAGE_SIZE = 10;
 

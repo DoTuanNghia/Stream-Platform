@@ -1,7 +1,7 @@
-// src/pages/login/login.jsx
+// src/pages/auth/login/login.jsx
 import React, { useState } from "react";
 import "./login.scss";
-import axiosClient from "../../api/axiosClient";
+import axiosClient from "@/api/axiosClient";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
@@ -26,25 +26,24 @@ const Login = () => {
     setError("");
 
     try {
-      const member = await axiosClient.post(
-        "/auth/login",
-        null,
-        {
-          params: {
-            username: form.username,
-            password: form.password,
-          },
-        }
-      );
+      const res = await axiosClient.post("/auth/login", null, {
+        params: {
+          username: form.username,
+          password: form.password,
+        },
+      });
+
+      // axiosClient có thể trả về res.data hoặc trả thẳng object
+      const member = res?.data ?? res;
 
       const storage = form.remember ? localStorage : sessionStorage;
       storage.setItem("currentUser", JSON.stringify(member));
 
-      navigate("/home"); 
+      navigate("/home", { replace: true });
     } catch (err) {
       console.error(err);
       const msg =
-        err.response?.data || "Đăng nhập thất bại, vui lòng kiểm tra lại.";
+        err?.response?.data || "Đăng nhập thất bại, vui lòng kiểm tra lại.";
       setError(typeof msg === "string" ? msg : "Đăng nhập thất bại.");
     }
   };
@@ -95,9 +94,7 @@ const Login = () => {
             <button
               type="button"
               className="link-button"
-              onClick={() =>
-                alert("Tính năng quên mật khẩu đang xây dựng.")
-              }
+              onClick={() => alert("Tính năng quên mật khẩu đang xây dựng.")}
             >
               Quên mật khẩu?
             </button>

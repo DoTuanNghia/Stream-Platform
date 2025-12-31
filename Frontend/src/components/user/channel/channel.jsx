@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import "./channel.scss";
 import AddChannel from "./addChannel/addChannel.jsx";
-import axiosClient from "../../api/axiosClient";
+import axiosClient from "../../../api/axiosClient.js";
 
 const PAGE_SIZE = 10;
 

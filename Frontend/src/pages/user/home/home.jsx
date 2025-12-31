@@ -1,11 +1,11 @@
 // src/pages/home/home.jsx
 import React, { useState } from "react";
-import Header from "../../components/header/header";
-import Sidebar from "../../components/sidebar/sidebar";
-import Device from "../../components/device/device";
-import Channel from "../../components/channel/channel";
-import Stream from "../../components/stream/stream";
-import StreamSession from "../../components/streamSession/streamSession";
+import Header from "@/components/user/header/header";
+import Sidebar from "@/components/user/sidebar/sidebar";
+import Device from "@/components/user/device/device";
+import Channel from "@/components/user/channel/channel";
+import Stream from "@/components/user/stream/stream";
+import StreamSession from "@/components/user/streamSession/streamSession";
 
 import "./home.scss";
 

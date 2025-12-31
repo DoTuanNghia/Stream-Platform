@@ -1,5 +1,6 @@
-// src/components/channel/channel.scss
-@use "../shared-table" as *;
+// src/components/stream/stream.scss
+@use "@/styles/shared-table" as *;
+
 
 .card {
   background: #020617;
@@ -11,8 +12,7 @@
   &__header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
     margin-bottom: 12px;
   }
 
@@ -23,18 +23,21 @@
   }
 }
 
-/* ===== Scroll ngang chắc chắn (override shared-table nếu cần) ===== */
+/* ===== Scroll ngang cho table khi màn hình nhỏ ===== */
 .table-wrapper {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+  width: 100%;
+  overflow-x: auto; // tạo thanh scroll ngang
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
+/* ép bảng có chiều rộng tối thiểu để nhỏ là phải scroll */
 .table {
-  width: max-content;
-  min-width: 900px; // bảng channel ít cột hơn stream
+  width: max-content;   // quan trọng: table không tự co về 100%
+  min-width: 1200px;    // tăng lên để chắc chắn tràn khi thu nhỏ
 }
 
+/* action không bị xuống dòng, dễ bấm */
 .table__actions {
   display: inline-flex;
   gap: 8px;
@@ -47,6 +50,10 @@
   display: flex;
   justify-content: flex-end;
   margin: 10px 0 12px;
+
+  &--bottom {
+    margin: 12px 0 0;
+  }
 }
 
 .table__pagination {
@@ -59,4 +66,10 @@
   color: #cbd5e1;
   font-size: 13px;
   white-space: nowrap;
+}
+
+.btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: auto; // quan trọng: vẫn nhận click để alert
 }
