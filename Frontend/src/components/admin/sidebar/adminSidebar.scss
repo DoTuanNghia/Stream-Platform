@@ -1,0 +1,54 @@
+.admin-sidebar {
+  width: 240px;
+  height: 100%;
+  background: #020617;              /* nền giống user */
+  border-right: 1px solid #1f2937;  /* border dark */
+  display: flex;
+  flex-direction: column;
+  color: #e5e7eb;
+}
+
+/* Brand / Logo */
+.admin-sidebar__brand {
+  padding: 16px;
+  font-weight: 800;
+  font-size: 16.5px;     /* ⬆️ tăng rõ */
+  color: #e5e7eb;
+  border-bottom: 1px solid #1f2937;
+  letter-spacing: 0.4px;
+}
+
+
+/* Nav container */
+.admin-sidebar__nav {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Link item */
+.admin-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+
+  font-size: 13px;
+  color: #9ca3af;                   /* text phụ */
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: #111827;
+    color: #e5e7eb;
+  }
+
+  &.is-active {
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    color: #f9fafb;
+    font-weight: 600;
+  }
+}

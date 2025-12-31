@@ -1,0 +1,75 @@
+// src/components/stream/stream.scss
+@use "../../../styles/shared-table" as *;
+
+
+.card {
+  background: #020617;
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  border: 1px solid #1f2937;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f9fafb;
+  }
+}
+
+/* ===== Scroll ngang cho table khi màn hình nhỏ ===== */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto; // tạo thanh scroll ngang
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ép bảng có chiều rộng tối thiểu để nhỏ là phải scroll */
+.table {
+  width: max-content;   // quan trọng: table không tự co về 100%
+  min-width: 1200px;    // tăng lên để chắc chắn tràn khi thu nhỏ
+}
+
+/* action không bị xuống dòng, dễ bấm */
+.table__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+/* ===== Pagination UI ===== */
+.table__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 12px;
+
+  &--bottom {
+    margin: 12px 0 0;
+  }
+}
+
+.table__pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table__pageinfo {
+  color: #cbd5e1;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: auto; // quan trọng: vẫn nhận click để alert
+}

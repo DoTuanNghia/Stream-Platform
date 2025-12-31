@@ -2,8 +2,6 @@ package com.stream.backend.repository;
 
 import com.stream.backend.entity.Channel;
 
-import java.util.List;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,4 +16,6 @@ public interface ChannelRepository extends JpaRepository<Channel, Integer> {
     Page<Channel> findByUserId(Integer userId, Pageable pageable);
 
     boolean existsById(Integer id);
+
+    long countByUserId(Integer userId);
 }

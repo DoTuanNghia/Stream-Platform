@@ -1,0 +1,29 @@
+// src/components/device/device.scss
+@use "../../../styles/shared-table" as *;
+
+
+.card {
+  background: #020617;
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  border: 1px solid #1f2937;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f9fafb;
+  }
+
+  &__subtitle {
+    font-size: 12px;
+    color: #9ca3af;
+  }
+}

@@ -1,0 +1,52 @@
+/* src/pages/admin/users/userCreate.scss */
+
+.admin-user-create {
+  &__header {
+    margin-bottom: 14px;
+
+    h2 {
+      margin: 0;
+      color: #e5e7eb;
+    }
+  }
+
+  &__card {
+    background: #020617;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 16px;
+    max-width: 520px;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+
+  label {
+    font-weight: 500;
+    color: #9ca3af;
+    font-size: 12px;
+  }
+
+  input {
+    background: #020617;
+    color: #e5e7eb;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 10px 12px;
+    outline: none;
+
+    &:focus {
+      border-color: #3b82f6;
+    }
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

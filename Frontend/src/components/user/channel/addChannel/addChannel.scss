@@ -1,0 +1,97 @@
+// src/components/channel/addChannel.scss
+@use "../../../../styles/shared-table" as *;
+
+
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 60px;
+  z-index: 200;
+}
+
+.modal {
+  width: min(640px, 100% - 40px);
+  background: #020617;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.9);
+  overflow: hidden;
+}
+
+.modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid #1f2937;
+}
+
+.modal__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.modal__close {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal__close:hover {
+  color: #f87171;
+}
+
+.modal__body {
+  padding: 16px 20px 18px;
+}
+
+.modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+
+  label {
+    font-size: 13px;
+    color: #e5e7eb;
+  }
+
+  input {
+    border-radius: 6px;
+    border: 1px solid #1f2937;
+    padding: 8px 10px;
+    font-size: 13px;
+    background: #020617;
+    color: #f9fafb;
+    outline: none;
+  }
+
+  input::placeholder {
+    color: #6b7280;
+  }
+
+  input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+  }
+}
+
+.modal__footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.modal__submit {
+  width: 100%;
+  justify-content: center;
+}
