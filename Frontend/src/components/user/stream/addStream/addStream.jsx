@@ -129,7 +129,7 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
                 onChange={handleChange}
               />
 
-              <input
+              {/* <input
                 type="number"
                 name="streamAfter"
                 placeholder="Sau (phút)"
@@ -137,7 +137,7 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
                 onChange={handleChange}
                 className="modal__small-input"
                 min={0}
-              />
+              /> */}
             </div>
           </div>
 

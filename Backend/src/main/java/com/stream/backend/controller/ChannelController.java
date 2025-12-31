@@ -25,8 +25,7 @@ public class ChannelController {
     public ResponseEntity<Map<String, Object>> getAllChannels(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,desc") String sort
-    ) {
+            @RequestParam(defaultValue = "id,desc") String sort) {
         Page<Channel> pageData = channelService.getAllChannels(page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
@@ -46,8 +45,7 @@ public class ChannelController {
             @PathVariable("userId") Integer userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,desc") String sort
-    ) {
+            @RequestParam(defaultValue = "id,desc") String sort) {
         Page<Channel> pageData = channelService.getChannelsByUserId(userId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
@@ -98,4 +96,18 @@ public class ChannelController {
         response.put("message", "Channel deleted successfully");
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/user/{userId}/count")
+    public ResponseEntity<Map<String, Object>> countChannelsByUserId(
+            @PathVariable("userId") Integer userId) {
+        long count = channelService.countChannelsByUserId(userId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Channel count fetched successfully");
+        response.put("userId", userId);
+        response.put("channelCount", count);
+
+        return ResponseEntity.ok(response);
+    }
+
 }

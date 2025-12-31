@@ -14,4 +14,6 @@ public interface ChannelService {
     void deleteChannel(Integer channelId);
 
     boolean existsChannel(Integer channelId);
+
+    long countChannelsByUserId(Integer userId);
 }

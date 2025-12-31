@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { memberApi } from "@/api/admin/member.api";
+import { memberApi } from "../../../api/admin/member.api";
+import { channelApi } from "../../../api/admin/channel.api.js";
+
 import "./users.scss";
 
 export default function Users() {
@@ -11,9 +13,42 @@ export default function Users() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 1) lấy users
       const res = await memberApi.getAll();
       const data = res?.data ?? res;
-      setRows(Array.isArray(data) ? data : []);
+      const users = Array.isArray(data) ? data : [];
+
+      // 2) lọc USER trước để giảm số request
+      const onlyUsers = users.filter(
+        (m) => String(m?.role ?? "").toUpperCase() === "USER"
+      );
+
+      // 3) gọi count cho từng user (song song)
+      const counts = await Promise.all(
+        onlyUsers.map(async (u) => {
+          try {
+            const r = await channelApi.countByUserId(u.id);
+            const d = r?.data ?? r;
+
+            // backend trả { channelCount: n }
+            return { userId: u.id, channelCount: Number(d?.channelCount ?? 0) };
+          } catch (e) {
+            console.error("COUNT CHANNEL ERROR userId=" + u.id, e);
+            return { userId: u.id, channelCount: 0 };
+          }
+        })
+      );
+
+      // 4) map userId -> channelCount
+      const countMap = new Map(counts.map((x) => [x.userId, x.channelCount]));
+
+      // 5) setRows = onlyUsers + channelCount
+      const merged = onlyUsers.map((u) => ({
+        ...u,
+        channelCount: countMap.get(u.id) ?? 0,
+      }));
+
+      setRows(merged);
     } catch (e) {
       console.error(e);
       setRows([]);
@@ -26,14 +61,12 @@ export default function Users() {
     fetchData();
   }, []);
 
-  // Chỉ lấy USER (không hiển thị ADMIN)
+  // rows lúc này đã là USER + có channelCount rồi
   const visibleRows = useMemo(() => {
-    return rows
-      .filter((m) => String(m?.role ?? "").toUpperCase() === "USER")
-      .map((m) => ({
-        ...m,
-        channelCount: m.channelCount ?? 0,
-      }));
+    return rows.map((m) => ({
+      ...m,
+      channelCount: m.channelCount ?? 0,
+    }));
   }, [rows]);
 
   const onDelete = async (id) => {
@@ -96,10 +129,16 @@ export default function Users() {
                       <td className="col-channels">{m.channelCount}</td>
                       <td className="col-actions">
                         <div className="table__actions">
-                          <button className="btn btn--ghost" onClick={() => onEdit(m.id)}>
+                          <button
+                            className="btn btn--ghost"
+                            onClick={() => onEdit(m.id)}
+                          >
                             Sửa
                           </button>
-                          <button className="btn btn--danger" onClick={() => onDelete(m.id)}>
+                          <button
+                            className="btn btn--danger"
+                            onClick={() => onDelete(m.id)}
+                          >
                             Xoá
                           </button>
                         </div>

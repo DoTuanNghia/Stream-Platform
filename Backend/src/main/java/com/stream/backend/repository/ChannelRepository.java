@@ -16,4 +16,6 @@ public interface ChannelRepository extends JpaRepository<Channel, Integer> {
     Page<Channel> findByUserId(Integer userId, Pageable pageable);
 
     boolean existsById(Integer id);
+
+    long countByUserId(Integer userId);
 }

@@ -78,7 +78,8 @@ public class ChannelServiceImpl implements ChannelService {
                     : Sort.Direction.ASC;
 
             // Sort theo tên FIELD Java, không theo tên cột DB
-            if (!isAllowedSortField(field)) field = "id";
+            if (!isAllowedSortField(field))
+                field = "id";
 
             return Sort.by(dir, field);
         } catch (Exception e) {
@@ -91,4 +92,10 @@ public class ChannelServiceImpl implements ChannelService {
                 || "name".equals(field)
                 || "channelCode".equals(field);
     }
+
+    @Override
+    public long countChannelsByUserId(Integer userId) {
+        return channelRepository.countByUserId(userId);
+    }
+
 }
