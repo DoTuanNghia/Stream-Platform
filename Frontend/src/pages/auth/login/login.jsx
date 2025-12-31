@@ -4,7 +4,7 @@ import "./login.scss";
 import axiosClient from "@/api/axiosClient";
 import { useNavigate } from "react-router-dom";
 
-const Login = () => {
+const Login = ({ onLoginSuccess }) => {
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -33,20 +33,38 @@ const Login = () => {
         },
       });
 
-      // axiosClient có thể trả về res.data hoặc trả thẳng object
+      // axiosClient có thể trả về response hoặc trả thẳng data
       const member = res?.data ?? res;
 
-      const storage = form.remember ? localStorage : sessionStorage;
-      storage.setItem("currentUser", JSON.stringify(member));
+      // Bắt buộc lưu 1 object "gọn" để tránh stringify lỗi
+      const safeUser = {
+        id: member?.id ?? null,
+        username: member?.username ?? form.username,
+        fullName: member?.fullName ?? member?.name ?? "",
+        role: member?.role ?? member?.type ?? "USER",
+      };
 
+      // Nếu remember -> localStorage, không remember -> sessionStorage
+      if (form.remember) {
+        localStorage.setItem("currentUser", JSON.stringify(safeUser));
+        sessionStorage.removeItem("currentUser");
+      } else {
+        sessionStorage.setItem("currentUser", JSON.stringify(safeUser));
+        localStorage.removeItem("currentUser");
+      }
+
+      onLoginSuccess();          // 🔥 DÒNG QUAN TRỌNG
       navigate("/home", { replace: true });
+
     } catch (err) {
-      console.error(err);
+      console.error("LOGIN ERROR:", err);
+      console.error("STATUS:", err?.response?.status);
       const msg =
         err?.response?.data || "Đăng nhập thất bại, vui lòng kiểm tra lại.";
       setError(typeof msg === "string" ? msg : "Đăng nhập thất bại.");
     }
   };
+
 
   return (
     <div className="login-page">

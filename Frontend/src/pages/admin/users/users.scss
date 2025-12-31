@@ -1,0 +1,81 @@
+@use "../../../styles/shared-table" as *;
+
+.admin-users {
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+
+    h2 {
+      margin: 0;
+      color: #e5e7eb;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+  }
+
+  &__card {
+    background: #020617;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 0;
+  }
+
+  &__loading {
+    padding: 12px;
+    color: #9ca3af;
+  }
+
+  &__empty {
+    text-align: center;
+    padding: 14px 10px;
+    color: #9ca3af;
+  }
+
+  &__name {
+    color: #e5e7eb;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+}
+
+/* Scale cột cho đẹp */
+.col-stt {
+  width: 64px;
+}
+
+.col-channels {
+  width: 120px;
+}
+
+.col-actions {
+  width: 180px;
+}
+
+/* Cho action canh gọn về bên phải */
+.table__actions {
+  justify-content: flex-end;
+}
+
+/* Giảm padding row một chút để bảng gọn hơn */
+.table.table--small {
+  font-size: 14px;
+  /* trước ~12–13 */
+}
+
+/* Giảm padding hàng để bớt xa */
+.table.table--small th,
+.table.table--small td {
+  padding: 8px 12px;
+  /* trước ~7–10 */
+  line-height: 1.35;
+}
+
+.table thead th {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5f5;
+  /* sáng hơn một chút */
+}

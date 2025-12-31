@@ -1,36 +1,45 @@
-// src/components/Header/Header.jsx
-import React, { useState, useEffect } from "react";
+// src/components/user/header/header.jsx (hoặc đúng path bạn đang dùng)
+import React, { useState } from "react";
 import "./Header.scss";
 import { useNavigate } from "react-router-dom";
 
-const Header = () => {
+const Header = ({ onLogout }) => {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(false);
 
   const getCurrentUser = () => {
-    return (
-      JSON.parse(localStorage.getItem("currentUser")) ||
-      JSON.parse(sessionStorage.getItem("currentUser"))
-    );
+    try {
+      const raw =
+        localStorage.getItem("currentUser") ||
+        sessionStorage.getItem("currentUser");
+      return JSON.parse(raw || "null");
+    } catch {
+      return null;
+    }
   };
 
-  const [user, setUser] = useState(getCurrentUser());
+  const user = getCurrentUser();
 
   const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    sessionStorage.removeItem("currentUser");
-    navigate("/login");
+    // ✅ QUAN TRỌNG: báo cho App đổi state isLoggedIn = false
+    if (typeof onLogout === "function") onLogout();
+    else {
+      // fallback an toàn nếu quên truyền prop
+      localStorage.removeItem("currentUser");
+      sessionStorage.removeItem("currentUser");
+    }
+    navigate("/login", { replace: true });
   };
 
-  const toggleMenu = () => setOpenMenu(prev => !prev);
+  const toggleMenu = () => setOpenMenu((prev) => !prev);
 
   const displayName = user?.name || user?.username || "User";
-
   const displayRole = user?.role || "Role";
-  
+
   const initials = displayName
     .split(" ")
-    .map(w => w[0])
+    .filter(Boolean)
+    .map((w) => w[0])
     .join("")
     .toUpperCase();
 
@@ -61,10 +70,7 @@ const Header = () => {
 
           {openMenu && (
             <div className="header__dropdown">
-              <button 
-                onClick={handleLogout} 
-                className="header__dropdown-item"
-              >
+              <button onClick={handleLogout} className="header__dropdown-item">
                 Đăng xuất
               </button>
             </div>

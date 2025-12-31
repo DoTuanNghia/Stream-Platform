@@ -42,8 +42,10 @@
 
   &__actions {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+    gap: 8px;
+    flex-wrap: nowrap;
+    justify-content: left;
+    white-space: nowrap;
   }
 
   &__mono {
@@ -66,7 +68,7 @@
 .btn {
   border-radius: 999px;
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: 13px;
   border: none;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.05s ease;
