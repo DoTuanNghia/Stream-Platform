@@ -1,6 +1,6 @@
 // src/components/user/header/header.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import "./Header.scss";
+import "./header.scss";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const getCurrentUser = () => {
