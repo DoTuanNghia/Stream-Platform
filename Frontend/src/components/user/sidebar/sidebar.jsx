@@ -1,6 +1,6 @@
 // src/components/Sidebar/Sidebar.jsx
 import React from "react";
-import "./Sidebar.scss";
+import "./sidebar.scss";
 
 const Sidebar = ({ activeMenu, onChangeMenu }) => {
   const menuItems = [
