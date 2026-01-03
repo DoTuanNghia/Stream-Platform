@@ -26,8 +26,8 @@ public class FfmpegServiceImpl implements FfmpegService {
     @Value("${stream.youtube.rtmp}")
     private String youtubeRtmp;
 
-    @Value("${stream.demo.video}")
-    private String demoVideoPath;
+    // @Value("${stream.demo.video}")
+    // private String demoVideoPath;
 
     // Lưu process FFmpeg theo streamKey để sau còn stop được
     private final Map<String, Process> processMap = new ConcurrentHashMap<>();
@@ -44,9 +44,9 @@ public class FfmpegServiceImpl implements FfmpegService {
     @Override
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
         // Nếu không truyền videoPath (hoặc rỗng) thì dùng video demo trong config
-        if (videoPath == null || videoPath.isBlank()) {
-            videoPath = demoVideoPath;
-        }
+        // if (videoPath == null || videoPath.isBlank()) {
+        //     videoPath = demoVideoPath;
+        // }
 
         if (videoPath == null || videoPath.isBlank()) {
             throw new RuntimeException("Video path is empty. Please config stream.demo.video");

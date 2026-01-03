@@ -1,16 +1,14 @@
-FROM maven:3-openjdk-17 AS build
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
-
 COPY . .
-RUN mvn clean package -DskipTests
+RUN mvn -DskipTests clean package
 
-
-# Run stage
-
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-COPY --from=build /app/target/DrComputer-0.0.1-SNAPSHOT.war drcomputer.war
-EXPOSE 8080 
+# Cài ffmpeg (FREE)
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT ["java","-jar","drcomputer.war"]
+COPY --from=build /app/target/*.war app.war
+EXPOSE 8080
+CMD ["java","-jar","app.war"]
