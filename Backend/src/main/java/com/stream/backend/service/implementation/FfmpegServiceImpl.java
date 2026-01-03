@@ -27,7 +27,7 @@ public class FfmpegServiceImpl implements FfmpegService {
     private String youtubeRtmp;
 
     // @Value("${stream.demo.video}")
-    // private String demoVideoPath;
+    private String demoVideoPath;
 
     // Lưu process FFmpeg theo streamKey để sau còn stop được
     private final Map<String, Process> processMap = new ConcurrentHashMap<>();
