@@ -10,7 +10,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/members")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+  "http://localhost:5173",
+  "https://stream-platform-eta.vercel.app"
+})
+
 public class MemberController {
 
     private final MemberRepository memberRepository;

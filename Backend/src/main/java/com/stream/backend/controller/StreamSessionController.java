@@ -13,7 +13,11 @@ import com.stream.backend.service.FfmpegService;
 
 @RestController
 @RequestMapping("/api/stream-sessions")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+  "http://localhost:5173",
+  "https://stream-platform-eta.vercel.app"
+})
+
 public class StreamSessionController {
 
     private final StreamSessionService streamSessionService;

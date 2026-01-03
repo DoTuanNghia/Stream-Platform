@@ -21,7 +21,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 
 @RestController
 @RequestMapping("/api/streams")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+  "http://localhost:5173",
+  "https://stream-platform-eta.vercel.app"
+})
+
 public class StreamController {
     private final StreamService streamService;
 

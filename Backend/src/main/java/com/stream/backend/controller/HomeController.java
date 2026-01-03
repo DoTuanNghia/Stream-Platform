@@ -8,7 +8,11 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+  "http://localhost:5173",
+  "https://stream-platform-eta.vercel.app"
+})
+
 public class HomeController {
 
     @GetMapping
