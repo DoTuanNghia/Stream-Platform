@@ -40,7 +40,7 @@ public class FfmpegServiceImpl implements FfmpegService {
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
 
         // if (videoPath == null || videoPath.isBlank()) {
-        //     videoPath = demoVideoPath;
+        // videoPath = demoVideoPath;
         // }
         if (videoPath == null || videoPath.isBlank()) {
             throw new RuntimeException("Video path is empty. Please config stream.demo.video");
@@ -64,7 +64,8 @@ public class FfmpegServiceImpl implements FfmpegService {
         // 1) thử copy trước (nếu bật)
         if (preferCopy) {
             boolean started = startCopyStream(videoPath, fullRtmp, streamKey);
-            if (started) return; // copy OK
+            if (started)
+                return; // copy OK
         }
 
         // 2) fallback: encode như bạn đang dùng (an toàn hơn)
@@ -73,7 +74,8 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     /**
      * Chạy FFmpeg remux với -c copy (nhẹ nhất).
-     * Return true nếu process start OK; nếu fail thì return false để fallback encode.
+     * Return true nếu process start OK; nếu fail thì return false để fallback
+     * encode.
      */
     private boolean startCopyStream(String videoPath, String fullRtmp, String streamKey) {
         try {
@@ -219,17 +221,17 @@ public class FfmpegServiceImpl implements FfmpegService {
     private void readProgress(String streamKey, Process process) {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
-
-            // dùng object riêng để update dần
             FfmpegStat stat = new FfmpegStat();
 
             while ((line = br.readLine()) != null) {
                 System.out.println("[FFMPEG] " + line);
 
-                if (!line.contains("=")) continue;
+                if (!line.contains("="))
+                    continue;
 
                 String[] kv = line.split("=", 2);
-                if (kv.length != 2) continue;
+                if (kv.length != 2)
+                    continue;
 
                 String key = kv[0].trim();
                 String val = kv[1].trim();
@@ -237,15 +239,16 @@ public class FfmpegServiceImpl implements FfmpegService {
                 switch (key) {
                     case "frame" -> stat.frame = parseLong(val);
                     case "fps" -> stat.fps = parseDouble(val);
+
+                    // q nằm ở stream_0_0_q
+                    case "stream_0_0_q" -> stat.q = parseDouble(val);
+
                     case "bitrate" -> stat.bitrate = val;
                     case "speed" -> stat.speed = val;
                     case "out_time" -> stat.time = val;
 
-                    // các key này có thể có (tuỳ build ffmpeg)
-                    // nếu FfmpegStat bạn không có field thì cứ bỏ các dòng này
-                    case "total_size" -> stat.size = val;           // nếu bạn đang dùng size dạng String
-                    // case "dup_frames" -> stat.dupFrames = parseLong(val);
-                    // case "drop_frames" -> stat.dropFrames = parseLong(val);
+                    // total_size là BYTES -> convert sang KiB/MiB để FE dễ đọc
+                    case "total_size" -> stat.size = humanBytes(parseLong(val));
                 }
 
                 stat.updatedAt = System.currentTimeMillis();
@@ -258,14 +261,29 @@ public class FfmpegServiceImpl implements FfmpegService {
         }
     }
 
+    private static String humanBytes(long bytes) {
+        if (bytes < 1024)
+            return bytes + "B";
+        double kib = bytes / 1024.0;
+        if (kib < 1024)
+            return String.format(java.util.Locale.US, "%.0fKiB", kib);
+        double mib = kib / 1024.0;
+        if (mib < 1024)
+            return String.format(java.util.Locale.US, "%.1fMiB", mib);
+        double gib = mib / 1024.0;
+        return String.format(java.util.Locale.US, "%.2fGiB", gib);
+    }
+
     @Override
     public void stopStream(String streamKey) {
-        if (streamKey == null || streamKey.isBlank()) return;
+        if (streamKey == null || streamKey.isBlank())
+            return;
 
         Process process = processMap.remove(streamKey);
         statMap.remove(streamKey);
 
-        if (process == null) return;
+        if (process == null)
+            return;
 
         try {
             // stop mềm
@@ -289,10 +307,18 @@ public class FfmpegServiceImpl implements FfmpegService {
     }
 
     private static long parseLong(String v) {
-        try { return Long.parseLong(v.trim()); } catch (Exception e) { return 0L; }
+        try {
+            return Long.parseLong(v.trim());
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     private static double parseDouble(String v) {
-        try { return Double.parseDouble(v.trim()); } catch (Exception e) { return 0.0; }
+        try {
+            return Double.parseDouble(v.trim());
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 }
