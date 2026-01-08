@@ -1,15 +1,9 @@
 package com.stream.backend.service.implementation;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,28 +20,28 @@ public class FfmpegServiceImpl implements FfmpegService {
     @Value("${stream.youtube.rtmp}")
     private String youtubeRtmp;
 
-    @Value("${stream.demo.video}")
-    private String demoVideoPath;
+    // @Value("${stream.demo.video}")
+    // private String demoVideoPath;
 
-    // Lưu process FFmpeg theo streamKey để sau còn stop được
+    /**
+     * Nếu true: ưu tiên -c copy (remux) để đạt speed cao.
+     * Nếu copy fail hoặc YouTube reject thì fallback encode.
+     */
+    @Value("${stream.ffmpeg.preferCopy:true}")
+    private boolean preferCopy;
+
+    /** lưu process theo streamKey */
     private final Map<String, Process> processMap = new ConcurrentHashMap<>();
 
-    // NEW: lưu snapshot thông số theo streamKey
+    /** snapshot realtime cho FE */
     private final Map<String, FfmpegStat> statMap = new ConcurrentHashMap<>();
-
-    // Parse dòng progress phổ biến của ffmpeg
-    // frame= 245 fps=5.2 q=23.0 size= 604KiB time=00:00:40.50 bitrate= 122.1kbits/s
-    // speed=0.863x
-    private static final Pattern PROGRESS_PATTERN = Pattern.compile(
-            "frame=\\s*(\\d+)\\s+fps=\\s*([0-9.]+)\\s+q=\\s*([0-9.]+)\\s+size=\\s*(\\S+)\\s+time=(\\S+)\\s+bitrate=\\s*(\\S+)\\s+speed=(\\S+)");
 
     @Override
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
-        // Nếu không truyền videoPath (hoặc rỗng) thì dùng video demo trong config
-        if (videoPath == null || videoPath.isBlank()) {
-            videoPath = demoVideoPath;
-        }
 
+        // if (videoPath == null || videoPath.isBlank()) {
+        //     videoPath = demoVideoPath;
+        // }
         if (videoPath == null || videoPath.isBlank()) {
             throw new RuntimeException("Video path is empty. Please config stream.demo.video");
         }
@@ -60,55 +54,108 @@ public class FfmpegServiceImpl implements FfmpegService {
                 ? rtmpUrl + streamKey
                 : rtmpUrl + "/" + streamKey;
 
-        // Nếu đã có process với streamKey này thì dừng nó trước
-        Process old = processMap.get(streamKey);
-        if (old != null && old.isAlive()) {
-            old.destroy();
-            try {
-                old.waitFor(3, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+        stopStream(streamKey); // đảm bảo không chạy trùng
+
+        // init stat để FE không null
+        FfmpegStat init = new FfmpegStat();
+        init.updatedAt = System.currentTimeMillis();
+        statMap.put(streamKey, init);
+
+        // 1) thử copy trước (nếu bật)
+        if (preferCopy) {
+            boolean started = startCopyStream(videoPath, fullRtmp, streamKey);
+            if (started) return; // copy OK
         }
 
-        final String keyForMap = streamKey; // dùng trong lambda
+        // 2) fallback: encode như bạn đang dùng (an toàn hơn)
+        startEncodeStream(videoPath, fullRtmp, streamKey);
+    }
 
+    /**
+     * Chạy FFmpeg remux với -c copy (nhẹ nhất).
+     * Return true nếu process start OK; nếu fail thì return false để fallback encode.
+     */
+    private boolean startCopyStream(String videoPath, String fullRtmp, String streamKey) {
         try {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
 
-            // ===== INPUT =====
-            // đọc realtime + loop vô hạn
+            // INPUT
             cmd.add("-re");
             cmd.add("-stream_loop");
             cmd.add("-1");
-
             cmd.add("-i");
             cmd.add(videoPath);
 
-            // ===== VIDEO =====
-            // scale + ép fps để ổn định ingest
-            cmd.add("-vf");
-            cmd.add("scale=1280:720,fps=30");
+            // COPY (remux)
+            cmd.add("-c:v");
+            cmd.add("copy");
+            cmd.add("-c:a");
+            cmd.add("copy");
 
-            // encoder CPU
+            // OUTPUT
+            cmd.add("-f");
+            cmd.add("flv");
+            cmd.add("-flvflags");
+            cmd.add("no_duration_filesize");
+
+            // PROGRESS
+            cmd.add("-progress");
+            cmd.add("pipe:1");
+            cmd.add("-nostats");
+
+            cmd.add(fullRtmp);
+
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            pb.redirectInput(ProcessBuilder.Redirect.PIPE);
+
+            Process process = pb.start();
+            processMap.put(streamKey, process);
+
+            new Thread(() -> readProgress(streamKey, process)).start();
+
+            System.out.println("[FFMPEG] Started COPY stream: " + streamKey);
+            return true;
+
+        } catch (IOException e) {
+            System.out.println("[FFMPEG] COPY start failed, fallback to ENCODE. Reason: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Encode fallback: 720p30, superfast, VBV.
+     * (Bạn có thể chỉnh thông số tại đây nếu cần)
+     */
+    private void startEncodeStream(String videoPath, String fullRtmp, String streamKey) {
+        try {
+            List<String> cmd = new ArrayList<>();
+            cmd.add(ffmpegPath);
+
+            // INPUT
+            cmd.add("-re");
+            cmd.add("-stream_loop");
+            cmd.add("-1");
+            cmd.add("-i");
+            cmd.add(videoPath);
+
+            // VIDEO
+            cmd.add("-vf");
+            cmd.add("scale=1280:720:flags=bilinear");
+
             cmd.add("-c:v");
             cmd.add("libx264");
-
-            // preset (giữ veryfast, nhiều stream có thể hạ superfast)
             cmd.add("-preset");
-            cmd.add("veryfast");
-
-            // giảm latency
-            cmd.add("-tune");
-            cmd.add("zerolatency");
-
-            // tương thích youtube
+            cmd.add("superfast");
+            cmd.add("-profile:v");
+            cmd.add("high");
+            cmd.add("-level");
+            cmd.add("4.1");
             cmd.add("-pix_fmt");
             cmd.add("yuv420p");
 
-            // ===== GOP =====
-            // 2s keyframe (30fps * 2)
+            // GOP 2s
             cmd.add("-g");
             cmd.add("60");
             cmd.add("-keyint_min");
@@ -116,25 +163,21 @@ public class FfmpegServiceImpl implements FfmpegService {
             cmd.add("-sc_threshold");
             cmd.add("0");
 
-            // ===== RATE CONTROL (CBR THẬT) =====
+            // VBV
             cmd.add("-b:v");
-            cmd.add("3000k");
-            cmd.add("-minrate");
             cmd.add("3000k");
             cmd.add("-maxrate");
             cmd.add("3000k");
             cmd.add("-bufsize");
             cmd.add("6000k");
 
-            // ÉP CBR + padding để bitrate KHÔNG tụt
-            cmd.add("-x264-params");
-            cmd.add("nal-hrd=cbr:filler=1:force-cfr=1");
-
-            // ép fps đầu ra (CFR)
+            // CFR
             cmd.add("-r");
             cmd.add("30");
+            cmd.add("-vsync");
+            cmd.add("cfr");
 
-            // ===== AUDIO =====
+            // AUDIO
             cmd.add("-c:a");
             cmd.add("aac");
             cmd.add("-b:a");
@@ -144,113 +187,112 @@ public class FfmpegServiceImpl implements FfmpegService {
             cmd.add("-ac");
             cmd.add("2");
 
-            // ===== OUTPUT =====
+            // OUTPUT
             cmd.add("-f");
             cmd.add("flv");
-
-            // tránh giật bitrate khi push RTMP
             cmd.add("-flvflags");
             cmd.add("no_duration_filesize");
+
+            // PROGRESS
+            cmd.add("-progress");
+            cmd.add("pipe:1");
+            cmd.add("-nostats");
 
             cmd.add(fullRtmp);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.redirectErrorStream(true); // gộp stderr vào stdout
+            pb.redirectErrorStream(true);
+            pb.redirectInput(ProcessBuilder.Redirect.PIPE);
+
             Process process = pb.start();
+            processMap.put(streamKey, process);
 
-            // LƯU process vào map để sau này stop được
-            processMap.put(keyForMap, process);
+            new Thread(() -> readProgress(streamKey, process)).start();
 
-            // init stat để FE không bị null
-            FfmpegStat init = new FfmpegStat();
-            init.updatedAt = System.currentTimeMillis();
-            statMap.put(keyForMap, init);
-
-            // In log ffmpeg ra console + parse snapshot
-            new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        System.out.println("[FFMPEG] " + line);
-
-                        FfmpegStat parsed = parseProgressLine(line);
-                        if (parsed != null) {
-                            parsed.updatedAt = System.currentTimeMillis();
-                            statMap.put(keyForMap, parsed);
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } finally {
-                    // Khi process tự kết thúc (video hết / lỗi) thì xoá khỏi map
-                    processMap.remove(keyForMap);
-                    statMap.remove(keyForMap);
-                }
-            }).start();
-
-            System.out.println("Started FFmpeg process for stream key: " + streamKey);
+            System.out.println("[FFMPEG] Started ENCODE stream: " + streamKey);
 
         } catch (IOException e) {
-            throw new RuntimeException("Failed to start FFmpeg process", e);
+            throw new RuntimeException("Failed to start FFmpeg ENCODE", e);
+        }
+    }
+
+    private void readProgress(String streamKey, Process process) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+
+            // dùng object riêng để update dần
+            FfmpegStat stat = new FfmpegStat();
+
+            while ((line = br.readLine()) != null) {
+                System.out.println("[FFMPEG] " + line);
+
+                if (!line.contains("=")) continue;
+
+                String[] kv = line.split("=", 2);
+                if (kv.length != 2) continue;
+
+                String key = kv[0].trim();
+                String val = kv[1].trim();
+
+                switch (key) {
+                    case "frame" -> stat.frame = parseLong(val);
+                    case "fps" -> stat.fps = parseDouble(val);
+                    case "bitrate" -> stat.bitrate = val;
+                    case "speed" -> stat.speed = val;
+                    case "out_time" -> stat.time = val;
+
+                    // các key này có thể có (tuỳ build ffmpeg)
+                    // nếu FfmpegStat bạn không có field thì cứ bỏ các dòng này
+                    case "total_size" -> stat.size = val;           // nếu bạn đang dùng size dạng String
+                    // case "dup_frames" -> stat.dupFrames = parseLong(val);
+                    // case "drop_frames" -> stat.dropFrames = parseLong(val);
+                }
+
+                stat.updatedAt = System.currentTimeMillis();
+                statMap.put(streamKey, stat);
+            }
+        } catch (IOException ignored) {
+        } finally {
+            processMap.remove(streamKey);
+            statMap.remove(streamKey);
         }
     }
 
     @Override
     public void stopStream(String streamKey) {
-        if (streamKey == null || streamKey.isBlank()) {
-            return;
-        }
+        if (streamKey == null || streamKey.isBlank()) return;
 
         Process process = processMap.remove(streamKey);
         statMap.remove(streamKey);
 
-        if (process == null) {
-            System.out.println("No FFmpeg process found for stream key: " + streamKey);
-            return;
-        }
+        if (process == null) return;
 
-        if (process.isAlive()) {
-            process.destroy(); // gửi tín hiệu dừng mềm
-            try {
-                if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                    process.destroyForcibly(); // nếu không dừng thì kill mạnh
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        try {
+            // stop mềm
+            OutputStream os = process.getOutputStream();
+            os.write("q\n".getBytes());
+            os.flush();
+
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
             }
+        } catch (Exception e) {
+            process.destroyForcibly();
         }
 
-        System.out.println("Stopped FFmpeg process for stream key: " + streamKey);
+        System.out.println("[FFMPEG] Stopped stream: " + streamKey);
     }
 
     @Override
     public FfmpegStat getLatestStat(String streamKey) {
-        if (streamKey == null || streamKey.isBlank())
-            return null;
         return statMap.get(streamKey);
     }
 
-    private FfmpegStat parseProgressLine(String line) {
-        if (line == null)
-            return null;
+    private static long parseLong(String v) {
+        try { return Long.parseLong(v.trim()); } catch (Exception e) { return 0L; }
+    }
 
-        Matcher m = PROGRESS_PATTERN.matcher(line);
-        if (!m.find())
-            return null;
-
-        try {
-            FfmpegStat s = new FfmpegStat();
-            s.frame = Long.parseLong(m.group(1));
-            s.fps = Double.parseDouble(m.group(2));
-            s.q = Double.parseDouble(m.group(3));
-            s.size = m.group(4);
-            s.time = m.group(5);
-            s.bitrate = m.group(6);
-            s.speed = m.group(7);
-            return s;
-        } catch (Exception ex) {
-            return null;
-        }
+    private static double parseDouble(String v) {
+        try { return Double.parseDouble(v.trim()); } catch (Exception e) { return 0.0; }
     }
 }
