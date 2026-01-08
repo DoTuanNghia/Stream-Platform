@@ -11,7 +11,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/devices")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+  "http://localhost:5173",
+  "https://stream-platform-eta.vercel.app"
+})
+
 @RequiredArgsConstructor
 public class DeviceController {
 
