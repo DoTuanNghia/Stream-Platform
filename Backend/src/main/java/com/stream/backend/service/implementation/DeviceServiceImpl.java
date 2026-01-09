@@ -17,7 +17,6 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public List<Device> getAllDevices() {
-        // trả hết device (kể cả đang full session)
         return deviceRepository.findAll();
     }
 

@@ -57,13 +57,12 @@ const StreamSession = () => {
 
   const buildStatText = (stat) => {
     if (!stat) return "-";
-    const frame = stat.frame ?? "-";
-    const fps = stat.fps ?? "-";
-    const q = stat.q ?? "-";
-    const size = stat.size ?? "-";
+    const fps = stat.fps != null ? Number(stat.fps).toFixed(1) : "-";
     const bitrate = stat.bitrate ?? "-";
-    return `frame=${frame} fps=${fps} q=${q} size=${size} bitrate=${bitrate}`;
+    const speed = stat.speed ?? "-";
+    return `fps=${fps} bitrate=${bitrate} speed=${speed}`;
   };
+
 
   const fetchSessions = async (pageNumber = page) => {
     setLoading(true);

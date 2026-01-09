@@ -11,7 +11,4 @@ import lombok.*;
 @NoArgsConstructor
 public class Admin extends Member {
 
-    // Nếu sau này có cột riêng cho admin thì thêm ở đây
-    // ví dụ:
-    // private String note;
 }
