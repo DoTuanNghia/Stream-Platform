@@ -15,7 +15,6 @@ public class MemberController {
 
     private final MemberRepository memberRepository;
 
-    // GET /api/members  -> trả danh sách tất cả member (admin + user)
     @GetMapping
     public List<Member> getAllMembers() {
         return memberRepository.findAll();

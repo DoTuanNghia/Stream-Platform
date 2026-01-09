@@ -40,9 +40,7 @@ public class FfmpegServiceImpl implements FfmpegService {
             rtmpUrl = youtubeRtmp;
         }
 
-        String fullRtmp = rtmpUrl.endsWith("/")
-                ? rtmpUrl + streamKey
-                : rtmpUrl + "/" + streamKey;
+        String fullRtmp = rtmpUrl.endsWith("/") ? (rtmpUrl + streamKey) : (rtmpUrl + "/" + streamKey);
 
         stopStream(streamKey); // đảm bảo không chạy trùng
 
@@ -55,10 +53,10 @@ public class FfmpegServiceImpl implements FfmpegService {
         if (preferCopy) {
             boolean started = startCopyStream(videoPath, fullRtmp, streamKey);
             if (started)
-                return; // copy OK
+                return;
         }
 
-        // 2) fallback: encode như bạn đang dùng (an toàn hơn)
+        // 2) fallback encode
         startEncodeStream(videoPath, fullRtmp, streamKey);
     }
 
@@ -94,7 +92,8 @@ public class FfmpegServiceImpl implements FfmpegService {
             // PROGRESS
             cmd.add("-progress");
             cmd.add("pipe:1");
-            cmd.add("-nostats");
+            cmd.add("-stats_period");
+            cmd.add("1");
 
             cmd.add(fullRtmp);
 
@@ -118,7 +117,6 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     /**
      * Encode fallback: 720p30, superfast, VBV.
-     * (Bạn có thể chỉnh thông số tại đây nếu cần)
      */
     private void startEncodeStream(String videoPath, String fullRtmp, String streamKey) {
         try {
@@ -209,13 +207,26 @@ public class FfmpegServiceImpl implements FfmpegService {
     }
 
     private void readProgress(String streamKey, Process process) {
+        FfmpegStat stat = new FfmpegStat();
+
         try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
-            FfmpegStat stat = new FfmpegStat();
 
             while ((line = br.readLine()) != null) {
                 System.out.println("[FFMPEG] " + line);
 
+                // 1) Parse kiểu STATS: "frame= 73 fps= 18 q=0.0 size=... time=... bitrate=...
+                // speed=0.60x"
+                // (cách chắc chắn để lấy fps trong mọi trường hợp)
+                if (line.contains("frame=") && line.contains("fps=")) {
+                    parseStatsLineInto(stat, line);
+
+                    stat.updatedAt = System.currentTimeMillis();
+                    statMap.put(streamKey, cloneStat(stat));
+                    continue;
+                }
+
+                // 2) Parse kiểu PROGRESS: key=value
                 if (!line.contains("="))
                     continue;
 
@@ -228,27 +239,132 @@ public class FfmpegServiceImpl implements FfmpegService {
 
                 switch (key) {
                     case "frame" -> stat.frame = parseLong(val);
-                    case "fps" -> stat.fps = parseDouble(val);
 
-                    // q nằm ở stream_0_0_q
+                    // nếu build ffmpeg có stream fps trong progress
+                    case "stream_0_0_fps" -> stat.fps = parseDouble(val);
                     case "stream_0_0_q" -> stat.q = parseDouble(val);
 
                     case "bitrate" -> stat.bitrate = val;
                     case "speed" -> stat.speed = val;
                     case "out_time" -> stat.time = val;
 
-                    // total_size là BYTES -> convert sang KiB/MiB để FE dễ đọc
                     case "total_size" -> stat.size = humanBytes(parseLong(val));
-                }
 
-                stat.updatedAt = System.currentTimeMillis();
-                statMap.put(streamKey, stat);
+                    // LƯU Ý: out_time_ms trong progress của bạn thực tế là microseconds (ví dụ
+                    // 138200000 = 138.2s)
+                    // Nên mình dùng out_time_us nếu có, còn out_time_ms coi như microseconds.
+                    case "out_time_us" -> stat.outTimeMs = parseLong(val) / 1000L; // us -> ms
+                    case "out_time_ms" -> stat.outTimeMs = parseLong(val) / 1000L; // treat as us -> ms
+
+                    // snapshot theo chunk
+                    case "progress" -> {
+                        // fallback compute fps nếu có frame + outTimeMs
+                        if ((stat.fps == null || stat.fps == 0.0)
+                                && stat.frame != null && stat.outTimeMs != null && stat.outTimeMs > 0) {
+                            stat.fps = stat.frame / (stat.outTimeMs / 1000.0);
+                        }
+
+                        stat.updatedAt = System.currentTimeMillis();
+                        statMap.put(streamKey, cloneStat(stat));
+                    }
+                }
             }
         } catch (IOException ignored) {
         } finally {
             processMap.remove(streamKey);
             statMap.remove(streamKey);
         }
+    }
+
+    private static void parseStatsLineInto(FfmpegStat stat, String line) {
+        // parse đơn giản bằng tách token
+        // ví dụ: frame= 73 fps= 18 q=0.0 size= 997KiB time=00:00:02.50
+        // bitrate=3267.0kbits/s speed=0.608x
+        try {
+            // frame
+            Long frame = extractLongAfter(line, "frame=");
+            if (frame != null)
+                stat.frame = frame;
+
+            // fps
+            Double fps = extractDoubleAfter(line, "fps=");
+            if (fps != null)
+                stat.fps = fps;
+
+            // q
+            Double q = extractDoubleAfter(line, "q=");
+            if (q != null)
+                stat.q = q;
+
+            // bitrate (giữ nguyên text)
+            String bitrate = extractTokenAfter(line, "bitrate=");
+            if (bitrate != null)
+                stat.bitrate = bitrate;
+
+            // speed (giữ nguyên text)
+            String speed = extractTokenAfter(line, "speed=");
+            if (speed != null)
+                stat.speed = speed;
+
+            // time
+            String time = extractTokenAfter(line, "time=");
+            if (time != null)
+                stat.time = time;
+
+            // size (text như "997KiB")
+            String size = extractTokenAfter(line, "size=");
+            if (size != null)
+                stat.size = size;
+
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String extractTokenAfter(String line, String key) {
+        int i = line.indexOf(key);
+        if (i < 0)
+            return null;
+        String tail = line.substring(i + key.length()).trim();
+        if (tail.isEmpty())
+            return null;
+        int sp = tail.indexOf(' ');
+        return (sp < 0) ? tail : tail.substring(0, sp).trim();
+    }
+
+    private static Long extractLongAfter(String line, String key) {
+        String t = extractTokenAfter(line, key);
+        if (t == null)
+            return null;
+        try {
+            return Long.parseLong(t.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Double extractDoubleAfter(String line, String key) {
+        String t = extractTokenAfter(line, key);
+        if (t == null)
+            return null;
+        try {
+            return Double.parseDouble(t.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static FfmpegStat cloneStat(FfmpegStat s) {
+        FfmpegStat c = new FfmpegStat();
+        c.frame = s.frame;
+        c.fps = s.fps;
+        c.q = s.q;
+        c.size = s.size;
+        c.bitrate = s.bitrate;
+        c.time = s.time;
+        c.speed = s.speed;
+        c.outTimeMs = s.outTimeMs;
+        c.updatedAt = s.updatedAt;
+        return c;
     }
 
     private static String humanBytes(long bytes) {
