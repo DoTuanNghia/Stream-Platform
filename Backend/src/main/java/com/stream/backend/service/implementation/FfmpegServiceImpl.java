@@ -20,13 +20,6 @@ public class FfmpegServiceImpl implements FfmpegService {
     @Value("${stream.youtube.rtmp}")
     private String youtubeRtmp;
 
-    // @Value("${stream.demo.video}")
-    // private String demoVideoPath;
-
-    /**
-     * Nếu true: ưu tiên -c copy (remux) để đạt speed cao.
-     * Nếu copy fail hoặc YouTube reject thì fallback encode.
-     */
     @Value("${stream.ffmpeg.preferCopy:true}")
     private boolean preferCopy;
 
@@ -39,9 +32,6 @@ public class FfmpegServiceImpl implements FfmpegService {
     @Override
     public void startStream(String videoPath, String rtmpUrl, String streamKey) {
 
-        // if (videoPath == null || videoPath.isBlank()) {
-        // videoPath = demoVideoPath;
-        // }
         if (videoPath == null || videoPath.isBlank()) {
             throw new RuntimeException("Video path is empty. Please config stream.demo.video");
         }
