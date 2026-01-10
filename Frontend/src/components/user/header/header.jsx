@@ -20,7 +20,6 @@ const Header = ({ onLogout }) => {
   const [openMenu, setOpenMenu] = useState(false);
   const [user, setUser] = useState(getCurrentUser());
 
-  // ✅ đổi route thì sync lại user (tránh stale)
   useEffect(() => {
     setUser(getCurrentUser());
   }, [location.pathname]);

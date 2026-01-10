@@ -61,7 +61,6 @@ export default function Users() {
     fetchData();
   }, []);
 
-  // rows lúc này đã là USER + có channelCount rồi
   const visibleRows = useMemo(() => {
     return rows.map((m) => ({
       ...m,
@@ -69,20 +68,12 @@ export default function Users() {
     }));
   }, [rows]);
 
-  const onDelete = async (id) => {
-    const ok = window.confirm("Bạn chắc chắn muốn xoá người dùng này?");
-    if (!ok) return;
-
-    try {
-      alert("Chưa có API xoá trên backend. UI đã sẵn sàng.");
-    } catch (e) {
-      console.error(e);
-      alert("Xoá thất bại.");
-    }
+  const onEdit = (id) => {
+    navigate(`/admin/users/${id}/edit`);
   };
 
-  const onEdit = (id) => {
-    alert(`Màn sửa sẽ làm sau. User ID: ${id}`);
+  const onDelete = (id) => {
+    navigate(`/admin/users/${id}/delete`);
   };
 
   return (
