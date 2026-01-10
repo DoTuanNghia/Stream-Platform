@@ -47,7 +47,6 @@ public class MemberController {
         }
     }
 
-    // FE gửi: { fullName, password, role } (cái nào đổi thì gửi)
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Integer id, @RequestBody Map<String, Object> body) {
         try {
@@ -77,4 +76,12 @@ public class MemberController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getById(@PathVariable Integer id) {
+        return memberRepository.findById(id)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.badRequest().body("Không tìm thấy member id=" + id));
+    }
+
 }

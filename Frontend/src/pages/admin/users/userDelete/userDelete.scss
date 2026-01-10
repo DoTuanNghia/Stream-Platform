@@ -1,0 +1,67 @@
+/* src/pages/admin/users/userDelete/userDelete.scss */
+
+.admin-user-delete {
+  &__header {
+    margin-bottom: 14px;
+
+    h2 {
+      margin: 0;
+      color: #e5e7eb;
+    }
+  }
+
+  &__card {
+    background: #020617;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 16px;
+    max-width: 520px;
+  }
+
+  &__loading {
+    color: #9ca3af;
+    padding: 12px 0;
+  }
+
+  &__warn {
+    margin: 0 0 12px 0;
+    color: #fca5a5;
+    font-size: 13px;
+  }
+
+  &__info {
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px dashed #1f2937;
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .k {
+        color: #9ca3af;
+        font-size: 12px;
+      }
+
+      .v {
+        color: #e5e7eb;
+        font-size: 13px;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
