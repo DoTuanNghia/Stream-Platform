@@ -9,6 +9,7 @@ export default function UserCreate() {
     fullName: "",
     username: "",
     password: "",
+    role: "USER", // mặc định
   });
   const [saving, setSaving] = useState(false);
 
@@ -21,13 +22,19 @@ export default function UserCreate() {
     e.preventDefault();
     setSaving(true);
     try {
-      // Nếu backend chưa có POST /members thì tạm alert
-      // await memberApi.create(form);
-      alert("Chưa có API tạo user trên backend. UI đã sẵn sàng.");
+      await memberApi.create({
+        fullName: form.fullName,
+        username: form.username,
+        password: form.password,
+        role: form.role, // "ADMIN" | "USER"
+      });
+
+      window.alert("Tạo tài khoản thành công");
       navigate("/admin/users", { replace: true });
     } catch (err) {
       console.error(err);
-      alert("Tạo người dùng thất bại.");
+      const msg = err?.response?.data || "Tạo người dùng thất bại.";
+      window.alert(msg);
     } finally {
       setSaving(false);
     }
@@ -71,6 +78,15 @@ export default function UserCreate() {
           />
         </div>
 
+        {/* ✅ Dropdown chọn quyền ngay dưới mật khẩu */}
+        <div className="field">
+          <label>Quyền</label>
+          <select name="role" value={form.role} onChange={handleChange}>
+            <option value="USER">USER</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </div>
+
         <div className="actions">
           <button
             type="button"
@@ -80,6 +96,7 @@ export default function UserCreate() {
           >
             Huỷ
           </button>
+          {/* <br /> */}
           <button type="submit" className="btn btn--primary" disabled={saving}>
             {saving ? "Đang lưu..." : "Lưu"}
           </button>

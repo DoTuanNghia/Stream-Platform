@@ -1,24 +1,3 @@
-/* src/pages/admin/users/userCreate.scss */
-
-.admin-user-create {
-  &__header {
-    margin-bottom: 14px;
-
-    h2 {
-      margin: 0;
-      color: #e5e7eb;
-    }
-  }
-
-  &__card {
-    background: #020617;
-    border: 1px solid #1f2937;
-    border-radius: 10px;
-    padding: 16px;
-    max-width: 520px;
-  }
-}
-
 .field {
   display: flex;
   flex-direction: column;
@@ -31,22 +10,41 @@
     font-size: 12px;
   }
 
-  input {
+  input,
+  select {
     background: #020617;
     color: #e5e7eb;
     border: 1px solid #1f2937;
     border-radius: 10px;
     padding: 10px 12px;
     outline: none;
+    font-size: 14px;
 
     &:focus {
       border-color: #3b82f6;
     }
   }
+
+  /* ✅ style riêng cho select */
+  select {
+    appearance: none;        // xoá mũi tên mặc định
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+
+    /* mũi tên custom */
+    background-image: url("data:image/svg+xml;utf8,<svg fill='%239ca3af' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 40px;
+
+    option {
+      background: #020617;
+      color: #e5e7eb;
+    }
+  }
 }
 
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+button {
+  margin: 0 8px 0 0; 
 }
