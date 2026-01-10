@@ -46,11 +46,11 @@ export default function AdminHeader() {
     setOpenMenu((p) => !p);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    sessionStorage.removeItem("currentUser");
-    navigate("/login", { replace: true });
-  };
+const handleLogout = () => {
+  localStorage.removeItem("currentUser");
+  sessionStorage.removeItem("currentUser");
+  window.location.replace("/login");
+};
 
   const handleGoHome = () => {
     setOpenMenu(false);
