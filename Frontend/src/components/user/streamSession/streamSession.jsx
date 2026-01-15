@@ -70,9 +70,15 @@ const StreamSession = () => {
       const bePage = Math.max(0, pageNumber - 1);
 
       // Paging backend
+      const raw =
+        localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+      const user = JSON.parse(raw || "null");
+      const userId = user?.id ?? user?.userId ?? null;
+
       const data = await axiosClient.get("/stream-sessions", {
-        params: { page: bePage, size: PAGE_SIZE, sort: "id,desc" },
+        params: { page: bePage, size: PAGE_SIZE, sort: "id,desc", userId },
       });
+
 
       const rawList = data.streamSessions || [];
 

@@ -49,16 +49,16 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     @Override
-    public Page<StreamSession> getAllStreamSessions(int page, int size, String sort) {
+    public Page<StreamSession> getAllStreamSessions(Integer userId, int page, int size, String sort) {
         Pageable pageable = buildPageable(page, size, sort);
-        // CHỈ ACTIVE để hiển thị + phân trang trang StreamSession
-        return streamSessionRepository.findByStatusIgnoreCase("ACTIVE", pageable);
+        return streamSessionRepository.findActiveByUserId(userId, pageable);
     }
 
     @Override
     public Page<StreamSession> getStreamSessionsByDeviceId(Integer deviceId, int page, int size, String sort) {
         Pageable pageable = buildPageable(page, size, sort);
-        // Nếu bạn cũng muốn device chỉ ACTIVE thì đổi sang query theo status + device, còn hiện tại giữ nguyên
+        // Nếu bạn cũng muốn device chỉ ACTIVE thì đổi sang query theo status + device,
+        // còn hiện tại giữ nguyên
         return streamSessionRepository.findByDeviceId(deviceId, pageable);
     }
 
@@ -71,10 +71,12 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Override
     public Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds) {
         Map<Integer, String> map = new LinkedHashMap<>();
-        if (streamIds == null || streamIds.isEmpty()) return map;
+        if (streamIds == null || streamIds.isEmpty())
+            return map;
 
         for (Integer streamId : streamIds) {
-            if (streamId == null) continue;
+            if (streamId == null)
+                continue;
             StreamSession ss = streamSessionRepository.findFirstByStreamId(streamId).orElse(null);
             if (ss != null && ss.getStatus() != null) {
                 map.put(streamId, ss.getStatus().toUpperCase());
@@ -101,7 +103,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                     ? Sort.Direction.fromString(parts[1].trim())
                     : Sort.Direction.ASC;
 
-            if (!isAllowedSortField(field)) field = "id";
+            if (!isAllowedSortField(field))
+                field = "id";
             return Sort.by(dir, field);
         } catch (Exception e) {
             return Sort.by(Sort.Direction.DESC, "id");
@@ -125,7 +128,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Transactional
     public StreamSession stopStreamSession(StreamSession session) {
 
-        if (session == null) throw new RuntimeException("StreamSession is null");
+        if (session == null)
+            throw new RuntimeException("StreamSession is null");
 
         String prevStatus = session.getStatus();
         Stream stream = session.getStream();
@@ -144,7 +148,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         // 2) Transition YouTube -> complete (best effort)
         try {
-            if (stream != null) youTubeLiveService.transitionBroadcast(stream, "complete");
+            if (stream != null)
+                youTubeLiveService.transitionBroadcast(stream, "complete");
         } catch (Exception ex) {
             System.err.println("[STOP] transition complete failed (ignored): " + ex.getMessage());
         }
@@ -187,7 +192,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             device = session.getDevice();
         } else {
             List<Device> devices = deviceRepository.findAvailableDevices();
-            if (devices.isEmpty()) throw new RuntimeException("Không còn device nào trống");
+            if (devices.isEmpty())
+                throw new RuntimeException("Không còn device nào trống");
             device = devices.get(0);
         }
 
@@ -212,7 +218,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         try {
             String streamKey = stream.getKeyStream();
-            if (streamKey == null || streamKey.isBlank()) throw new RuntimeException("Stream key trống");
+            if (streamKey == null || streamKey.isBlank())
+                throw new RuntimeException("Stream key trống");
 
             String videoSource = null;
             if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
@@ -257,7 +264,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         deviceRepository.save(device);
 
         String streamKey = stream.getKeyStream();
-        if (streamKey == null || streamKey.isBlank()) throw new RuntimeException("Stream key trống");
+        if (streamKey == null || streamKey.isBlank())
+            throw new RuntimeException("Stream key trống");
 
         String videoSource = null;
         if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
@@ -274,7 +282,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     private String normalizeVideoSource(String raw) {
-        if (raw == null) return null;
+        if (raw == null)
+            return null;
         raw = raw.trim();
 
         Pattern p = Pattern.compile("https?://drive\\.google\\.com/file/d/([^/]+)/view.*");
