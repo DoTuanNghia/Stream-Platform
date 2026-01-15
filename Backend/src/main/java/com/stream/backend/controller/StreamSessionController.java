@@ -24,15 +24,13 @@ public class StreamSessionController {
         this.ffmpegService = ffmpegService;
     }
 
-    // GET /api/stream-sessions?page=0&size=10&sort=id,desc
-    // ==> CHỈ ACTIVE (paging)
     @GetMapping("")
     public ResponseEntity<Map<String, Object>> getAllStreamSessions(
+            @RequestParam(required = false) Integer userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,desc") String sort
-    ) {
-        var pageData = streamSessionService.getAllStreamSessions(page, size, sort);
+            @RequestParam(defaultValue = "id,desc") String sort) {
+        var pageData = streamSessionService.getAllStreamSessions(userId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "StreamSessions fetched successfully");
@@ -71,8 +69,7 @@ public class StreamSessionController {
             @PathVariable("deviceId") Integer deviceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,desc") String sort
-    ) {
+            @RequestParam(defaultValue = "id,desc") String sort) {
         var pageData = streamSessionService.getStreamSessionsByDeviceId(deviceId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
@@ -93,8 +90,7 @@ public class StreamSessionController {
             @PathVariable("streamId") Integer streamId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,desc") String sort
-    ) {
+            @RequestParam(defaultValue = "id,desc") String sort) {
         var pageData = streamSessionService.getStreamSessionsByStreamId(streamId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
@@ -152,7 +148,8 @@ public class StreamSessionController {
     }
 
     @PostMapping("/{streamSessionId}")
-    public ResponseEntity<Map<String, Object>> stopStreamSession(@PathVariable("streamSessionId") Integer streamSessionId) {
+    public ResponseEntity<Map<String, Object>> stopStreamSession(
+            @PathVariable("streamSessionId") Integer streamSessionId) {
 
         StreamSession streamSession = streamSessionService.getStreamSessionById(streamSessionId);
         var stopped = streamSessionService.stopStreamSession(streamSession);

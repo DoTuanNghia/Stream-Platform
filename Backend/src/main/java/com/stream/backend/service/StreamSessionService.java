@@ -9,7 +9,7 @@ import com.stream.backend.entity.StreamSession;
 
 public interface StreamSessionService {
 
-    Page<StreamSession> getAllStreamSessions(int page, int size, String sort);
+    Page<StreamSession> getAllStreamSessions(Integer userId, int page, int size, String sort);
 
     Page<StreamSession> getStreamSessionsByDeviceId(Integer deviceId, int page, int size, String sort);
 
