@@ -1,5 +1,5 @@
 // src/components/stream/addStream/addStream.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./addStream.scss";
 
 const emptyForm = {
@@ -16,13 +16,14 @@ const emptyForm = {
 const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
   const [form, setForm] = useState(emptyForm);
 
+  // ✅ Chỉ đóng khi click thật sự bắt đầu từ overlay (không phải kéo từ modal ra)
+  const overlayMouseDownOnBackdropRef = useRef(false);
+
   useEffect(() => {
     if (!isOpen) return;
 
     if (initialData) {
-      const time = initialData.timeStart
-        ? new Date(initialData.timeStart)
-        : null;
+      const time = initialData.timeStart ? new Date(initialData.timeStart) : null;
 
       setForm({
         note: initialData.name || "",
@@ -44,6 +45,20 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
 
   if (!isOpen) return null;
 
+  const handleOverlayMouseDown = (e) => {
+    // chỉ đánh dấu TRUE nếu mousedown trực tiếp trên backdrop (overlay), không phải con bên trong
+    overlayMouseDownOnBackdropRef.current = e.target === e.currentTarget;
+  };
+
+  const handleOverlayMouseUp = (e) => {
+    // chỉ đóng nếu: mousedown trên backdrop và mouseup cũng trên backdrop
+    const mouseUpOnBackdrop = e.target === e.currentTarget;
+    if (overlayMouseDownOnBackdropRef.current && mouseUpOnBackdrop) {
+      onClose();
+    }
+    overlayMouseDownOnBackdropRef.current = false;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -56,12 +71,14 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-overlay"
+      onMouseDown={handleOverlayMouseDown}
+      onMouseUp={handleOverlayMouseUp}
+    >
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span className="modal__title">
-            Kênh : {channelId || "Chưa chọn"}
-          </span>
+          <span className="modal__title">Kênh : {channelId || "Chưa chọn"}</span>
           <button className="modal__close" onClick={onClose}>
             ×
           </button>
@@ -103,53 +120,20 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
 
           <div className="modal__field">
             <label>Upload Full HD</label>
-            <input
-              type="number"
-              name="fullHd"
-              value={form.fullHd}
-              onChange={handleChange}
-              min={0}
-            />
+            <input type="number" name="fullHd" value={form.fullHd} onChange={handleChange} min={0} />
           </div>
 
           <div className="modal__field">
             <label>Thời gian bắt đầu</label>
             <div className="modal__row-inline">
-              <input
-                type="time"
-                name="startTime"
-                value={form.startTime}
-                onChange={handleChange}
-              />
-
-              <input
-                type="date"
-                name="startDate"
-                value={form.startDate}
-                onChange={handleChange}
-              />
-
-              {/* <input
-                type="number"
-                name="streamAfter"
-                placeholder="Sau (phút)"
-                value={form.streamAfter || ""}
-                onChange={handleChange}
-                className="modal__small-input"
-                min={0}
-              /> */}
+              <input type="time" name="startTime" value={form.startTime} onChange={handleChange} />
+              <input type="date" name="startDate" value={form.startDate} onChange={handleChange} />
             </div>
           </div>
 
           <div className="modal__field">
             <label>Thời lượng sẽ live</label>
-            <input
-              type="number"
-              name="duration"
-              value={form.duration}
-              onChange={handleChange}
-              min={-1}
-            />
+            <input type="number" name="duration" value={form.duration} onChange={handleChange} min={-1} />
           </div>
 
           <div className="modal__footer">
@@ -164,4 +148,3 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
 };
 
 export default AddStream;
-

@@ -1,5 +1,4 @@
-// src/components/channel/addChannel.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./addChannel.scss";
 
 const AddChannel = ({ isOpen, onClose, onSave }) => {
@@ -9,6 +8,9 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
     name: "",
   });
 
+  // ✅ dùng ref để kiểm soát mousedown / mouseup
+  const mouseDownOnBackdropRef = useRef(false);
+
   // reset form mỗi lần mở
   useEffect(() => {
     if (isOpen) {
@@ -16,7 +18,22 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null; 
+  if (!isOpen) return null;
+
+  const handleOverlayMouseDown = (e) => {
+    // chỉ true nếu click trực tiếp lên overlay
+    mouseDownOnBackdropRef.current = e.target === e.currentTarget;
+  };
+
+  const handleOverlayMouseUp = (e) => {
+    const mouseUpOnBackdrop = e.target === e.currentTarget;
+
+    // ✅ chỉ đóng khi mousedown + mouseup đều ở overlay
+    if (mouseDownOnBackdropRef.current && mouseUpOnBackdrop) {
+      onClose();
+    }
+    mouseDownOnBackdropRef.current = false;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -25,16 +42,21 @@ const AddChannel = ({ isOpen, onClose, onSave }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // if (!form.username || !form.channelId || !form.name) return;
     if (!form.channelId || !form.name) return;
-    onSave(form); 
+    onSave(form);
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div
+      className="modal-overlay"
+      onMouseDown={handleOverlayMouseDown}
+      onMouseUp={handleOverlayMouseUp}
+    >
       <div
         className="modal"
-        onClick={(e) => e.stopPropagation()} 
+        // chặn sự kiện chuột lan ra overlay
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
       >
         <div className="modal__header">
           <span className="modal__title">Kênh :</span>
