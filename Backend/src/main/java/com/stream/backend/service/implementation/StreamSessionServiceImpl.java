@@ -316,4 +316,11 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         return streamSessionRepository.save(session);
     }
+
+    @Override
+    public Page<StreamSession> adminGetAll(String status, int page, int size, String sort) {
+        Pageable pageable = buildPageable(page, size, sort);
+        String s = (status == null || status.isBlank()) ? null : status.trim();
+        return streamSessionRepository.findAllByOptionalStatus(s, pageable);
+    }
 }

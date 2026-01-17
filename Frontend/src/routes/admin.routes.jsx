@@ -7,6 +7,8 @@ import UserCreate from "../pages/admin/users/userCreate/UserCreate";
 import UserUpdate from "../pages/admin/users/userUpdate/UserUpdate";
 import UserDelete from "../pages/admin/users/userDelete/UserDelete";
 
+import AdminStreams from "../pages/admin/streams/AdminStreams";
+
 import AdminGuard from "../guards/AdminGuard";
 
 export default function AdminRoutes() {
@@ -19,6 +21,8 @@ export default function AdminRoutes() {
         <Route path="users/new" element={<UserCreate />} />
         <Route path="users/:id/edit" element={<UserUpdate />} />
         <Route path="users/:id/delete" element={<UserDelete />} />
+
+        <Route path="streams" element={<AdminStreams />} />
       </Route>
     </Route>
   );

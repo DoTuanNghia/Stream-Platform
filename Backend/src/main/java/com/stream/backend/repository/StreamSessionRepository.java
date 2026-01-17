@@ -37,4 +37,10 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
             """)
     Page<StreamSession> findActiveByUserId(@Param("userId") Integer userId, Pageable pageable);
 
+    @Query("""
+                select ss
+                from StreamSession ss
+                where (:status is null or lower(ss.status) = lower(:status))
+            """)
+    Page<StreamSession> findAllByOptionalStatus(@Param("status") String status, Pageable pageable);
 }
