@@ -16,6 +16,15 @@ export default function AdminSidebar() {
         >
           Quản lý người dùng
         </NavLink>
+        <NavLink
+          to="/admin/streams"
+          className={({ isActive }) =>
+            "admin-sidebar__link" + (isActive ? " is-active" : "")
+          }
+        >
+          Thống kê luồng
+        </NavLink>
+
       </nav>
     </aside>
   );

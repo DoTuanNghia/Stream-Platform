@@ -1,0 +1,154 @@
+@use "../../../styles/shared-table" as *;
+
+.admin-streams {
+  &__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+
+    h2 {
+      margin: 0;
+      color: #e5e7eb;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+  }
+
+  &__meta {
+    margin-top: 6px;
+    color: #9ca3af;
+    font-size: 13.5px;
+
+    b {
+      color: #e5e7eb;
+    }
+  }
+
+  &__tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__card {
+    background: #020617;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 0;
+  }
+
+  &__loading {
+    padding: 12px;
+    color: #9ca3af;
+  }
+
+  &__empty {
+    text-align: center;
+    padding: 14px 10px;
+    color: #9ca3af;
+  }
+
+  &__name {
+    color: #e5e7eb;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+
+  &__pager {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid #1f2937;
+
+    /* để nút First/Last/Prev/Next đều nhau */
+    .btn {
+      min-width: 72px;
+    }
+  }
+
+  &__pagerText {
+    color: #cbd5f5;
+    font-size: 13.5px;
+
+    b {
+      color: #e5e7eb;
+    }
+  }
+}
+
+.tab-btn {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #0b1220;
+  color: #cbd5f5;
+  font-weight: 600;
+  cursor: pointer;
+
+  &.is-active {
+    background: #111827;
+    border-color: #334155;
+    color: #e5e7eb;
+  }
+}
+
+.col-stt {
+  width: 64px;
+}
+.col-status {
+  width: 120px;
+}
+.col-time {
+  width: 170px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  color: #cbd5f5;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #334155;
+  background: #0b1220;
+  color: #e5e7eb;
+
+  &--active {
+    border-color: #14532d;
+  }
+  &--scheduled {
+    border-color: #1e3a8a;
+  }
+  &--stopped {
+    border-color: #7f1d1d;
+  }
+}
+
+/* table compact giống users */
+.table.table--small {
+  font-size: 14px;
+}
+
+.table.table--small th,
+.table.table--small td {
+  padding: 8px 12px;
+  line-height: 1.35;
+}
+
+.table thead th {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5f5;
+}
