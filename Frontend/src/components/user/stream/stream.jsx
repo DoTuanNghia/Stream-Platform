@@ -48,8 +48,9 @@ const Stream = ({ channel }) => {
 
       // 1) Fetch streams paging
       const streamRes = await axiosClient.get(`/streams/channel/${channel.id}`, {
-        params: { page: bePage, size: PAGE_SIZE, sort: "timeStart,desc" },
+        params: { page: bePage, size: PAGE_SIZE, sort: "name,asc" },
       });
+
 
       const list = streamRes.streams || [];
       const tp = Number(streamRes.totalPages ?? 1) || 1;
