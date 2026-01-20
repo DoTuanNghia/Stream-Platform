@@ -21,20 +21,6 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
-    public Device createDevice(Device device) {
-        // đảm bảo currentSession không null
-        if (device.getCurrentSession() == null) {
-            device.setCurrentSession(0);
-        }
-        return deviceRepository.save(device);
-    }
-
-    @Override
-    public void deleteDevice(Integer id) {
-        deviceRepository.deleteById(id);
-    }
-
-    @Override
     public List<Device> getAvailableDevices() {
         // lọc device còn slot (currentSession < totalSession), sort theo id tăng dần
         return deviceRepository.findAll().stream()

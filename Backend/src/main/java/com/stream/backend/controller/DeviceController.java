@@ -22,15 +22,4 @@ public class DeviceController {
         return ResponseEntity.ok(deviceService.getAllDevices());
     }
 
-    @PostMapping
-    public ResponseEntity<Device> createDevice(@RequestBody Device device) {
-        Device saved = deviceService.createDevice(device);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDevice(@PathVariable Integer id) {
-        deviceService.deleteDevice(id);
-        return ResponseEntity.noContent().build();
-    }
 }
