@@ -13,7 +13,7 @@ import com.stream.backend.service.FfmpegService;
 
 @RestController
 @RequestMapping("/api/stream-sessions")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "*")
 public class StreamSessionController {
 
     private final StreamSessionService streamSessionService;
@@ -30,6 +30,7 @@ public class StreamSessionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id,desc") String sort) {
+
         var pageData = streamSessionService.getAllStreamSessions(userId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
@@ -44,7 +45,6 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
-    // NEW: status map cho trang Stream
     // GET /api/stream-sessions/status-map?streamIds=1,2,3
     @GetMapping("/status-map")
     public ResponseEntity<Map<String, Object>> getStatusMap(@RequestParam("streamIds") String streamIds) {
@@ -52,7 +52,11 @@ public class StreamSessionController {
         List<Integer> ids = Arrays.stream(streamIds.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
-                .map(Integer::valueOf)
+                .map(s -> {
+                    try { return Integer.valueOf(s); }
+                    catch (Exception e) { return null; }
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         Map<Integer, String> map = streamSessionService.getStatusMapByStreamIds(ids);
@@ -64,33 +68,13 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/device/{deviceId}")
-    public ResponseEntity<Map<String, Object>> getStreamSessionByDeviceId(
-            @PathVariable("deviceId") Integer deviceId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,desc") String sort) {
-        var pageData = streamSessionService.getStreamSessionsByDeviceId(deviceId, page, size, sort);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "StreamSessions fetched successfully");
-        response.put("deviceId", deviceId);
-        response.put("streamSessions", pageData.getContent());
-        response.put("page", pageData.getNumber());
-        response.put("size", pageData.getSize());
-        response.put("totalElements", pageData.getTotalElements());
-        response.put("totalPages", pageData.getTotalPages());
-        response.put("last", pageData.isLast());
-
-        return ResponseEntity.ok(response);
-    }
-
     @GetMapping("/stream/{streamId}")
     public ResponseEntity<Map<String, Object>> getStreamSessionByStreamId(
             @PathVariable("streamId") Integer streamId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id,desc") String sort) {
+
         var pageData = streamSessionService.getStreamSessionsByStreamId(streamId, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
@@ -114,21 +98,6 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/device/{deviceId}/stream/{streamId}")
-    public ResponseEntity<Map<String, Object>> createStreamSession(
-            @PathVariable("deviceId") Integer deviceId,
-            @PathVariable("streamId") Integer streamId,
-            @RequestBody StreamSession streamSession) {
-
-        var saved = streamSessionService.createStreamSession(streamSession, deviceId, streamId);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "StreamSession created successfully");
-        response.put("streamSession", saved);
-
-        return ResponseEntity.status(201).body(response);
-    }
-
     @PostMapping("/start/{streamId}")
     public ResponseEntity<Map<String, Object>> startStreamSession(@PathVariable("streamId") Integer streamId) {
         Map<String, Object> response = new HashMap<>();
@@ -137,8 +106,6 @@ public class StreamSessionController {
 
             response.put("message", "StreamSession started successfully");
             response.put("streamSession", started);
-            response.put("deviceId", started.getDevice().getId());
-            response.put("deviceName", started.getDevice().getName());
 
             return ResponseEntity.ok(response);
         } catch (RuntimeException ex) {
@@ -167,6 +134,7 @@ public class StreamSessionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id,desc") String sort) {
+
         var pageData = streamSessionService.adminGetAll(status, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();

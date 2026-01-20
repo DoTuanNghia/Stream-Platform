@@ -17,7 +17,7 @@ const formatTime = (iso) => {
   return `${day}/${month} ${hour}:${minute}`;
 };
 
-const Stream = ({ channel }) => {
+const Stream = () => {
   const [streams, setStreams] = useState([]);
   const [streamStatusMap, setStreamStatusMap] = useState({}); // { [streamId]: "ACTIVE" | "SCHEDULED" | "STOPPED" }
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -30,15 +30,24 @@ const Stream = ({ channel }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
 
-  const fetchStreams = async (pageNumber = page) => {
-    if (!channel?.id) {
-      setStreams([]);
-      setStreamStatusMap({});
-      setPage(1);
-      setTotalPages(1);
-      setTotalElements(0);
-      return;
+
+  useEffect(() => {
+    setPage(1);
+    fetchStreams(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const getCurrentUserId = () => {
+    try {
+      const raw =
+        localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+      const user = JSON.parse(raw || "null");
+      return user?.id ?? user?.userId ?? null;
+    } catch {
+      return null;
     }
+  };
+  const fetchStreams = async (pageNumber = page) => {
 
     setLoading(true);
     setError("");
@@ -47,10 +56,10 @@ const Stream = ({ channel }) => {
       const bePage = Math.max(0, pageNumber - 1);
 
       // 1) Fetch streams paging
-      const streamRes = await axiosClient.get(`/streams/channel/${channel.id}`, {
-        params: { page: bePage, size: PAGE_SIZE, sort: "name,asc" },
+      const userId = getCurrentUserId();
+      const streamRes = await axiosClient.get(`/streams`, {
+        params: { page: bePage, size: PAGE_SIZE, sort: "name,asc", userId },
       });
-
 
       const list = streamRes.streams || [];
       const tp = Number(streamRes.totalPages ?? 1) || 1;
@@ -113,12 +122,6 @@ const Stream = ({ channel }) => {
     }
   };
 
-  useEffect(() => {
-    setPage(1);
-    fetchStreams(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel?.id]);
-
   const gotoPage = async (p) => {
     const next = Math.min(Math.max(1, p), totalPages);
     if (next === page) return;
@@ -126,7 +129,6 @@ const Stream = ({ channel }) => {
   };
 
   const handleSaveStream = async (form) => {
-    if (!channel?.id) return;
 
     try {
       const payload = {
@@ -150,7 +152,9 @@ const Stream = ({ channel }) => {
       if (editingStream) {
         await axiosClient.put(`/streams/${editingStream.id}`, payload);
       } else {
-        await axiosClient.post(`/streams/channel/${channel.id}`, payload);
+        const userId = getCurrentUserId();
+        await axiosClient.post(`/streams`, payload, { params: { userId } });
+
       }
 
       await fetchStreams(page);
@@ -176,17 +180,17 @@ const Stream = ({ channel }) => {
   const handleStreamNow = async (stream) => {
     const stt = String(streamStatusMap[stream.id] || "NONE").toUpperCase();
 
-    // Theo yêu cầu: ACTIVE và STOPPED không được Stream Ngay
-    if (stt === "ACTIVE" || stt === "STOPPED") {
-      alert("Luồng không thể Stream Ngay.");
+    if (stt === "ACTIVE") {
+      alert("Luồng đang chạy (ACTIVE), không thể Stream Ngay.");
       return;
     }
+
 
     if (!window.confirm(`Stream ngay luồng: "${stream.name}"?`)) return;
 
     try {
       const res = await axiosClient.post(`/stream-sessions/start/${stream.id}`);
-      alert(res.message || `Đã bắt đầu stream trên máy ${res.deviceName || res.deviceId}.`);
+      alert(res.message || "Đã bắt đầu stream.");
 
       await fetchStreams(page);
     } catch (err) {
@@ -195,17 +199,6 @@ const Stream = ({ channel }) => {
       alert(msg);
     }
   };
-
-  if (!channel) {
-    return (
-      <section className="card">
-        <div className="card__header">
-          <h2 className="card__title">Danh sách luồng của kênh đang chọn</h2>
-        </div>
-        <p className="card__subtitle">Hãy chọn một kênh ở mục “Danh sách kênh”.</p>
-      </section>
-    );
-  }
 
   const openAddModal = () => {
     setEditingStream(null);
@@ -227,9 +220,9 @@ const Stream = ({ channel }) => {
       <section className="card">
         <div className="card__header">
           <div>
-            <h2 className="card__title">Danh sách luồng của kênh đang chọn</h2>
+            <h2 className="card__title">Danh sách luồng của bạn</h2>
             <p className="card__subtitle">
-              Kênh: <strong>{channel.name}</strong> (<span className="table__mono">{channel.channelCode}</span>)
+              Hiển thị tất cả streams
             </p>
           </div>
           <button className="btn btn--primary" onClick={openAddModal}>
@@ -275,7 +268,7 @@ const Stream = ({ channel }) => {
               ) : (
                 streams.map((st, index) => {
                   const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
-                  const blocked = status === "ACTIVE" || status === "STOPPED";
+                  const blocked = status === "ACTIVE";
 
                   return (
                     <tr key={st.id}>
@@ -301,12 +294,12 @@ const Stream = ({ channel }) => {
                             aria-disabled={blocked}
                             title={
                               blocked
-                                ? status === "ACTIVE"
-                                  ? "Luồng đang ACTIVE, không thể Stream Ngay"
-                                  : "Luồng đã STOPPED, không thể Stream Ngay"
-                                : status === "SCHEDULED"
-                                  ? "Luồng đang SCHEDULED, có thể Stream Ngay"
-                                  : ""
+                                ? "Luồng đang ACTIVE, không thể Stream Ngay"
+                                : status === "STOPPED"
+                                  ? "Luồng đã STOPPED, có thể sửa và stream lại"
+                                  : status === "SCHEDULED"
+                                    ? "Luồng đang SCHEDULED, có thể Stream Ngay"
+                                    : ""
                             }
                           >
                             Stream Ngay
@@ -348,7 +341,6 @@ const Stream = ({ channel }) => {
         isOpen={isAddOpen}
         onClose={closeAddModal}
         onSave={handleSaveStream}
-        channelId={channel.channelCode}
         initialData={editingStream}
       />
     </>

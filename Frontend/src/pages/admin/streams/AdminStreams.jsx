@@ -81,7 +81,7 @@ export default function AdminStreams() {
       status: String(x?.status ?? "").toUpperCase(),
       streamKey: x?.stream?.keyStream ?? "n/a",
       streamName: x?.stream?.name ?? x?.stream?.title ?? "n/a",
-      deviceName: x?.device?.name ?? "n/a",
+      specText: x?.specification ?? "n/a",
       startedText: formatLocalDateTime(x?.startedAt),
       stoppedText: formatLocalDateTime(x?.stoppedAt),
     }));
@@ -135,7 +135,6 @@ export default function AdminStreams() {
                     <th className="col-stt">STT</th>
                     <th>Stream</th>
                     <th>StreamKey</th>
-                    <th>Device</th>
                     <th className="col-status">Status</th>
                     <th className="col-time">Started</th>
                     <th className="col-time">Stopped</th>
@@ -145,18 +144,16 @@ export default function AdminStreams() {
                 <tbody>
                   {visibleRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="admin-streams__empty">
+                      <td colSpan={6} className="admin-streams__empty">
                         Không có dữ liệu
                       </td>
                     </tr>
                   ) : (
                     visibleRows.map((m, idx) => (
                       <tr key={m.id ?? idx}>
-                        {/* ✅ STT đúng theo trang */}
                         <td className="col-stt">{page * size + idx + 1}</td>
                         <td className="admin-streams__name">{m.streamName}</td>
                         <td className="mono">{m.streamKey}</td>
-                        <td>{m.deviceName}</td>
                         <td className="col-status">
                           <span className={"badge badge--" + m.status.toLowerCase()}>
                             {m.status}

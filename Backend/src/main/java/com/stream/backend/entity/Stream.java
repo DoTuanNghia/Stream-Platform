@@ -47,14 +47,13 @@ public class Stream {
     @Column(name = "auto_stop")
     private Boolean autoStop = true;
 
-    // 1 Channel có N Stream
-    @ManyToOne
-    @JoinColumn(name = "channel_id", nullable = false)
-    @JsonBackReference
-    private Channel channel;
-
     // StreamSession bạn có thể giữ nguyên
     @OneToOne(mappedBy = "stream")
     @JsonIgnore
     private StreamSession streamSession;
+
+    @ManyToOne
+    @JoinColumn(name = "owner_id", nullable = false)
+    @JsonIgnore
+    private Member owner;
 }

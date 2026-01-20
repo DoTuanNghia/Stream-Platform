@@ -11,13 +11,9 @@ public interface StreamSessionService {
 
     Page<StreamSession> getAllStreamSessions(Integer userId, int page, int size, String sort);
 
-    Page<StreamSession> getStreamSessionsByDeviceId(Integer deviceId, int page, int size, String sort);
-
     Page<StreamSession> getStreamSessionsByStreamId(Integer streamId, int page, int size, String sort);
 
     Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds);
-
-    StreamSession createStreamSession(StreamSession streamSession, Integer deviceId, Integer streamId);
 
     StreamSession stopStreamSession(StreamSession streamSession);
 

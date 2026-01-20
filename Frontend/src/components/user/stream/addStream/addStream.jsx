@@ -13,7 +13,8 @@ const emptyForm = {
   duration: 0,
 };
 
-const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
+const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
+
   const [form, setForm] = useState(emptyForm);
 
   // ✅ Chỉ đóng khi click thật sự bắt đầu từ overlay (không phải kéo từ modal ra)
@@ -64,11 +65,39 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const VIDEO_BASE_DIR = "D:\\videos\\";
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.keyLive) return;
-    onSave(form);
+
+    const rawName = (form.videoList || "").trim(); // user nhập: name hoặc name.mp4
+
+    // nếu rỗng thì thôi
+    if (!rawName) {
+      onSave({ ...form, videoList: "" });
+      return;
+    }
+
+    // nếu user đã nhập full path rồi thì giữ nguyên (phòng khi bạn muốn)
+    const isFullPath = /^[a-zA-Z]:\\/.test(rawName);
+    if (isFullPath) {
+      onSave({ ...form, videoList: rawName });
+      return;
+    }
+
+    // thêm .mp4 nếu thiếu
+    const filename = rawName.toLowerCase().endsWith(".mp4") ? rawName : `${rawName}.mp4`;
+
+    // ghép thành D:\videos\filename
+    const fullPath = `${VIDEO_BASE_DIR}${filename}`;
+
+    onSave({
+      ...form,
+      videoList: fullPath,
+    });
   };
+
 
   return (
     <div
@@ -78,7 +107,10 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
     >
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span className="modal__title">Kênh : {channelId || "Chưa chọn"}</span>
+          <span className="modal__title">
+            {initialData ? "Sửa Stream" : "Tạo Stream"}
+          </span>
+
           <button className="modal__close" onClick={onClose}>
             ×
           </button>
@@ -108,20 +140,16 @@ const AddStream = ({ isOpen, onClose, onSave, channelId, initialData }) => {
           </div>
 
           <div className="modal__field">
-            <label>Danh sách videos</label>
-            <textarea
+            <label>Tên video</label>
+            <input
+              type="text"
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder="Nhập danh sách video (mỗi dòng 1 video, nếu cần)"
-              rows={3}
+              placeholder='Ví dụ: name.mp4 (hoặc chỉ "name")'
             />
           </div>
 
-          <div className="modal__field">
-            <label>Upload Full HD</label>
-            <input type="number" name="fullHd" value={form.fullHd} onChange={handleChange} min={0} />
-          </div>
 
           <div className="modal__field">
             <label>Thời gian bắt đầu</label>

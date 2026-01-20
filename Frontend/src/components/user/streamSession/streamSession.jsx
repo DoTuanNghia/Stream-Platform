@@ -236,7 +236,6 @@ const StreamSession = () => {
             <tr>
               <th>STT</th>
               <th>Tên luồng</th>
-              <th>Máy</th>
               <th>Start</th>
               <th>End dự kiến</th>
               <th>Thông số</th>
@@ -258,10 +257,8 @@ const StreamSession = () => {
             ) : (
               sessions.map((s, index) => {
                 const stream = s.stream || {};
-                const device = s.device || {};
 
                 const note = stream.name || "-";
-                const deviceName = device.name || "-";
 
                 const startIso = getDisplayStart(s);
                 const start = formatDateTime(startIso);
@@ -283,7 +280,6 @@ const StreamSession = () => {
                     {/* STT theo toàn cục */}
                     <td>{(page - 1) * PAGE_SIZE + index + 1}</td>
                     <td>{note}</td>
-                    <td>{deviceName}</td>
                     <td>{start}</td>
                     <td>{end}</td>
                     <td>{stats}</td>
