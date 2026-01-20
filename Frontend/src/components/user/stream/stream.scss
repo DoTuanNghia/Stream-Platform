@@ -40,9 +40,15 @@
 /* action không bị xuống dòng, dễ bấm */
 .table__actions {
   display: inline-flex;
-  gap: 8px;
+  gap: 30px;
   flex-wrap: nowrap;
   white-space: nowrap;
+
+  .btn {
+    padding: 6px 14px;  
+    min-width: 60px;   
+    margin-right: 25px;  
+  }
 }
 
 /* ===== Pagination UI ===== */
@@ -71,5 +77,5 @@
 .btn--disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: auto; // quan trọng: vẫn nhận click để alert
+  pointer-events: auto; 
 }
