@@ -17,7 +17,6 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
   const [form, setForm] = useState(emptyForm);
 
-  // ✅ Chỉ đóng khi click thật sự bắt đầu từ overlay (không phải kéo từ modal ra)
   const overlayMouseDownOnBackdropRef = useRef(false);
 
   useEffect(() => {
@@ -146,7 +145,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder='Ví dụ: name.mp4 (hoặc chỉ "name")'
+              placeholder='Link/Tên video (vd: "video1.mp4" hoặc "D:\videos\video1.mp4")'
             />
           </div>
 
