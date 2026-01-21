@@ -19,56 +19,76 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PutMapping;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/api/streams")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "*")
 public class StreamController {
+
     private final StreamService streamService;
 
     public StreamController(StreamService streamService) {
         this.streamService = streamService;
     }
 
-    @GetMapping("/channel/{channelId}")
-    public ResponseEntity<Map<String, Object>> getStreamsByChannelId(
-            @PathVariable("channelId") Integer channelId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "timeStart,desc") String sort) {
-        var pageData = streamService.getStreamsByChannelId(channelId, page, size, sort);
+    private Integer resolveUserId(Integer userIdParam, HttpServletRequest request) {
+        if (userIdParam != null)
+            return userIdParam;
 
-        Map<String, Object> response = new HashMap<>();
-
-        if (pageData.isEmpty()) {
-            response.put("message", "No stream found for channel");
-            response.put("channelId", channelId);
-            response.put("streams", pageData.getContent());
-            response.put("page", pageData.getNumber());
-            response.put("size", pageData.getSize());
-            response.put("totalElements", pageData.getTotalElements());
-            response.put("totalPages", pageData.getTotalPages());
-            response.put("last", pageData.isLast());
-            return ResponseEntity.status(404).body(response);
+        // fallback: header X-USER-ID (nếu bạn đang dùng kiểu này)
+        try {
+            String h = request.getHeader("X-USER-ID");
+            if (h != null && !h.isBlank())
+                return Integer.valueOf(h.trim());
+        } catch (Exception ignore) {
         }
 
-        response.put("message", "Streams fetched successfully");
-        response.put("streams", pageData.getContent());
-        response.put("page", pageData.getNumber());
-        response.put("size", pageData.getSize());
-        response.put("totalElements", pageData.getTotalElements());
-        response.put("totalPages", pageData.getTotalPages());
-        response.put("last", pageData.isLast());
-
-        return ResponseEntity.ok(response);
+        return null;
     }
 
-    @PostMapping("/channel/{channelId}")
+    @GetMapping("")
+    public ResponseEntity<Map<String, Object>> getStreamsByUserId(
+            @RequestParam(required = false) Integer userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name,asc") String sort,
+            HttpServletRequest request) {
+
+        Integer uid = resolveUserId(userId, request);
+        if (uid == null) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("message", "Missing userId (query param) or X-USER-ID header");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        var pageData = streamService.getStreamsByUserId(uid, page, size, sort);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("streams", pageData.getContent());
+        res.put("page", pageData.getNumber());
+        res.put("size", pageData.getSize());
+        res.put("totalElements", pageData.getTotalElements());
+        res.put("totalPages", pageData.getTotalPages());
+        res.put("last", pageData.isLast());
+
+        return ResponseEntity.ok(res);
+    }
+
+    @PostMapping("")
     public ResponseEntity<Object> createStream(
-            @PathVariable("channelId") Integer channelId,
-            @RequestBody Stream stream) {
+            @RequestParam(required = false) Integer userId,
+            @RequestBody Stream stream,
+            HttpServletRequest request) {
 
-        var saved = streamService.createStream(stream, channelId);
+        Integer uid = resolveUserId(userId, request);
+        if (uid == null) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("message", "Missing userId (query param) or X-USER-ID header");
+            return ResponseEntity.badRequest().body(err);
+        }
 
+        var saved = streamService.createStream(stream, uid);
         return ResponseEntity.status(201).body(saved);
     }
 
@@ -80,13 +100,37 @@ public class StreamController {
 
         Map<String, String> response = new HashMap<>();
         response.put("message", "Stream deleted successfully");
-
         return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{streamId}")
-    public ResponseEntity<Object> updateStream(@PathVariable("streamId") Integer streamId, @RequestBody Stream stream) {
+    public ResponseEntity<Object> updateStream(
+            @PathVariable("streamId") Integer streamId,
+            @RequestBody Stream stream) {
+
         Stream updated = streamService.updateStream(streamId, stream);
         return ResponseEntity.ok(updated);
     }
+
+    @GetMapping("/all")
+    public ResponseEntity<Map<String, Object>> getAllStreamsByUserId(
+            @RequestParam(required = false) Integer userId,
+            @RequestParam(defaultValue = "name,asc") String sort,
+            HttpServletRequest request) {
+
+        Integer uid = resolveUserId(userId, request);
+        if (uid == null) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("message", "Missing userId (query param) or X-USER-ID header");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        var list = streamService.getStreamsByUserId(uid, sort);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("streams", list);
+        res.put("totalElements", list.size());
+        return ResponseEntity.ok(res);
+    }
+
 }

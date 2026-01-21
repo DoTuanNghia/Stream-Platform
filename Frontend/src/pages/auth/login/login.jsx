@@ -98,7 +98,7 @@ const Login = ({ onLoginSuccess }) => {
             />
           </div>
 
-          <div className="login-form__options">
+          {/* <div className="login-form__options">
             <label className="checkbox">
               <input
                 type="checkbox"
@@ -116,7 +116,7 @@ const Login = ({ onLoginSuccess }) => {
             >
               Quên mật khẩu?
             </button>
-          </div>
+          </div> */}
 
           {error && <p className="login-form__error">{error}</p>}
 

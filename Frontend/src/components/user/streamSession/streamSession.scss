@@ -1,6 +1,8 @@
-// src/components/streamSession/streamSession.scss
 @use "../../../styles/shared-table" as *;
 
+/* =========================
+   STREAM SESSION - HEADER + SCROLL TABLE
+   ========================= */
 
 .card {
   background: #020617;
@@ -9,66 +11,91 @@
   border: 1px solid #1f2937;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
 
-  &__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  &__title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #f9fafb;
-  }
-
-  &__subtitle {
-    font-size: 12px;
-    color: #9ca3af;
-    margin-top: 4px;
-  }
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-/* Scroll ngang chắc chắn */
-.table-wrapper {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+/* Header không co */
+.card__header {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+
+.card__headerLeft {
+  min-width: 0;
+}
+
+/* Title to hơn */
+.card__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f9fafb;
+  letter-spacing: 0.2px;
+}
+
+/* Row dưới title: tổng + nút reload nằm ngang */
+.card__headerRow {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* ⬅️ tổng bên trái, nút bên phải */
+  gap: 12px;
+}
+
+/* text tổng */
+.header__total {
+  font-size: 13px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Button to hơn */
+.btn--lg {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+/* ✅ CHỈ vùng này scroll */
+.card > .table-wrapper.table-wrapper--vscroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 0;
+
+  overflow: auto !important;
+
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  background: #020617;
+
   -webkit-overflow-scrolling: touch;
-
-  /* Quan trọng: nền của vùng scroll giống nền table để không bị “đen xì” */
-  background: #020617;
+  scrollbar-gutter: stable;
 }
 
-/* Sửa lỗi vùng đen sau Action:
-   - width: 100% để table phủ hết container
-   - min-width để khi màn hình nhỏ thì vẫn tràn và có scroll */
-.table {
-  width: 100% !important;
-  min-width: 1300px; /* bảng nhiều cột -> nhỏ sẽ scroll */
-  background: #020617;
-}
-
-/* (Tuỳ chọn) giữ header dính nền */
-.table thead {
+/* Sticky header */
+.card > .table-wrapper.table-wrapper--vscroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: #111827;
 }
 
-/* Pagination UI */
-.table__toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin: 10px 0 12px;
+/* FIX hở/cách cột */
+.card > .table-wrapper.table-wrapper--vscroll .table {
+  width: 100% !important;
+  min-width: 1200px;
+  border-collapse: collapse;
+  table-layout: auto;
 }
 
-.table__pagination {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.table__pageinfo {
-  color: #cbd5e1;
-  font-size: 13px;
+/* Action không bị kéo dãn */
+.card > .table-wrapper.table-wrapper--vscroll th:last-child,
+.card > .table-wrapper.table-wrapper--vscroll td:last-child {
+  width: 1%;
   white-space: nowrap;
 }

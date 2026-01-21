@@ -12,11 +12,5 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @PrimaryKeyJoinColumn(name = "id")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 public class User extends Member {
-
-    @OneToMany(mappedBy = "user")
-    @JsonIgnore
-    private List<Channel> channels;   // 1 User có N Channel
 }

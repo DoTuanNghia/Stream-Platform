@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { memberApi } from "../../../api/admin/member.api";
-import { channelApi } from "../../../api/admin/channel.api.js";
 
 import "./users.scss";
 
@@ -22,33 +21,7 @@ export default function Users() {
       const onlyUsers = users.filter(
         (m) => String(m?.role ?? "").toUpperCase() === "USER"
       );
-
-      // 3) gọi count cho từng user (song song)
-      const counts = await Promise.all(
-        onlyUsers.map(async (u) => {
-          try {
-            const r = await channelApi.countByUserId(u.id);
-            const d = r?.data ?? r;
-
-            // backend trả { channelCount: n }
-            return { userId: u.id, channelCount: Number(d?.channelCount ?? 0) };
-          } catch (e) {
-            console.error("COUNT CHANNEL ERROR userId=" + u.id, e);
-            return { userId: u.id, channelCount: 0 };
-          }
-        })
-      );
-
-      // 4) map userId -> channelCount
-      const countMap = new Map(counts.map((x) => [x.userId, x.channelCount]));
-
-      // 5) setRows = onlyUsers + channelCount
-      const merged = onlyUsers.map((u) => ({
-        ...u,
-        channelCount: countMap.get(u.id) ?? 0,
-      }));
-
-      setRows(merged);
+      setRows(onlyUsers);
     } catch (e) {
       console.error(e);
       setRows([]);
@@ -61,12 +34,7 @@ export default function Users() {
     fetchData();
   }, []);
 
-  const visibleRows = useMemo(() => {
-    return rows.map((m) => ({
-      ...m,
-      channelCount: m.channelCount ?? 0,
-    }));
-  }, [rows]);
+  const visibleRows = useMemo(() => rows, [rows]);
 
   const onEdit = (id) => {
     navigate(`/admin/users/${id}/edit`);
@@ -98,7 +66,6 @@ export default function Users() {
                 <tr>
                   <th className="col-stt">STT</th>
                   <th>Tên người dùng</th>
-                  <th className="col-channels">Số kênh</th>
                   <th className="col-actions">Tuỳ chọn</th>
                 </tr>
               </thead>
@@ -106,7 +73,7 @@ export default function Users() {
               <tbody>
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="admin-users__empty">
+                    <td colSpan={3} className="admin-users__empty">
                       Không có dữ liệu
                     </td>
                   </tr>
@@ -117,7 +84,6 @@ export default function Users() {
                       <td className="admin-users__name">
                         {m.fullName ?? m.name ?? m.username ?? "n/a"}
                       </td>
-                      <td className="col-channels">{m.channelCount}</td>
                       <td className="col-actions">
                         <div className="table__actions">
                           <button

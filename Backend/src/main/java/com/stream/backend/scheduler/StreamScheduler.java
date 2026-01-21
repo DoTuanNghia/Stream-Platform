@@ -13,7 +13,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -27,8 +26,7 @@ public class StreamScheduler {
     private final YouTubeLiveService youTubeLiveService;
 
     @Scheduled(fixedDelay = 10_000)
-    @Transactional
-    public void autoStartAndStop() {
+    public void autoStartAndStop() { // ✅ bỏ @Transactional để tránh rollback-only
         LocalDateTime now = LocalDateTime.now();
         autoStartScheduledSessions(now);
         autoStopExpiredSessions(now);
@@ -55,13 +53,21 @@ public class StreamScheduler {
                 try {
                     StreamSession started = streamSessionService.startScheduledSession(session.getId());
 
-                    try {
-                        youTubeLiveService.transitionBroadcast(stream, "live");
-                    } catch (Exception ex) {
-                        log.warn("[AUTO-START] transition 'live' failed for streamId={} (ignored): {}",
-                                stream.getId(), ex.getMessage());
+                    // ✅ nếu fail thì service đã set ERROR, không transition youtube nữa
+                    if (started != null && "ACTIVE".equalsIgnoreCase(started.getStatus())) {
+                        try {
+                            youTubeLiveService.transitionBroadcast(stream, "live");
+                        } catch (Exception ex) {
+                            log.warn("[AUTO-START] transition 'live' failed for streamId={} (ignored): {}",
+                                    stream.getId(), ex.getMessage());
+                        }
+                    } else {
+                        log.warn("[AUTO-START] sessionId={} not ACTIVE (status={})",
+                                session.getId(), started != null ? started.getStatus() : "null");
                     }
+
                 } catch (Exception e) {
+                    // trường hợp hiếm nếu service có lỗi ngoài 예상
                     log.error("[AUTO-START] failed sessionId=" + session.getId(), e);
                 }
             }

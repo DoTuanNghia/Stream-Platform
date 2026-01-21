@@ -9,12 +9,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import com.stream.backend.entity.Channel;
-import com.stream.backend.entity.Device;
+import com.stream.backend.entity.Member;
 import com.stream.backend.entity.Stream;
 import com.stream.backend.entity.StreamSession;
-import com.stream.backend.repository.ChannelRepository;
-import com.stream.backend.repository.DeviceRepository;
+import com.stream.backend.repository.MemberRepository;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
 import com.stream.backend.service.FfmpegService;
@@ -23,76 +21,86 @@ import com.stream.backend.youtube.YouTubeLiveService;
 
 @Service
 public class StreamServiceImpl implements StreamService {
+
     private final StreamRepository streamRepository;
-    private final ChannelRepository channelRepository;
     private final StreamSessionRepository streamSessionRepository;
-    private final DeviceRepository deviceRepository;
+    private final MemberRepository memberRepository;
+
     private final YouTubeLiveService youTubeLiveService;
     private final FfmpegService ffmpegService;
 
-    public StreamServiceImpl(StreamRepository streamRepository,
-            ChannelRepository channelRepository,
+    public StreamServiceImpl(
+            StreamRepository streamRepository,
             StreamSessionRepository streamSessionRepository,
-            DeviceRepository deviceRepository,
+            MemberRepository memberRepository,
             YouTubeLiveService youTubeLiveService,
             FfmpegService ffmpegService) {
 
         this.streamRepository = streamRepository;
-        this.channelRepository = channelRepository;
         this.streamSessionRepository = streamSessionRepository;
-        this.deviceRepository = deviceRepository;
+        this.memberRepository = memberRepository;
         this.youTubeLiveService = youTubeLiveService;
         this.ffmpegService = ffmpegService;
     }
 
     @Override
-    public List<Stream> getStreamsByChannelId(Integer channelId) {
-        return streamRepository.findByChannelId(channelId);
+    public Page<Stream> getStreamsByUserId(Integer userId, int page, int size, String sort) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
+        Sort sortObj = parseSort(sort);
+        Pageable pageable = PageRequest.of(safePage, safeSize, sortObj);
+
+        return streamRepository.findByOwnerId(userId, pageable);
+    }
+
+    @Override
+    public List<Stream> getStreamsByUserId(Integer userId) {
+        return streamRepository.findByOwnerId(userId);
+    }
+
+    @Override
+    public List<Stream> getStreamsByUserId(Integer userId, String sort) {
+        Sort sortObj = parseSort(sort);
+        return streamRepository.findByOwnerId(userId, sortObj);
     }
 
     @Override
     @Transactional
-    public Stream createStream(Stream stream, Integer channelId) {
+    public Stream createStream(Stream stream, Integer userId) {
 
-        Channel channel = channelRepository.findById(channelId)
-                .orElseThrow(() -> new RuntimeException("Channel not found"));
-        stream.setChannel(channel);
+        Member owner = memberRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        stream.setOwner(owner);
 
-        // 1. Tạo lịch + streamKey trên YouTube
-        try {
-            String streamKey = youTubeLiveService.createScheduledBroadcastForStream(stream);
-            stream.setKeyStream(streamKey);
-        } catch (Exception e) {
-            throw new RuntimeException("Không tạo được lịch YouTube", e);
+        // (tuỳ bạn) nếu còn dùng Youtube schedule, bạn bật lại:
+        // try {
+        // String streamKey =
+        // youTubeLiveService.createScheduledBroadcastForStream(stream);
+        // stream.setKeyStream(streamKey);
+        // } catch (Exception e) {
+        // throw new RuntimeException("Không tạo được lịch YouTube", e);
+        // }
+
+        Stream saved = streamRepository.save(stream);
+
+        // ✅ nếu có timeStart => tạo/ghi đè session SCHEDULED
+        if (saved.getTimeStart() != null) {
+            StreamSession ss = streamSessionRepository
+                    .findTopByStreamIdOrderByIdDesc(saved.getId())
+                    .orElse(null);
+
+            if (ss == null)
+                ss = new StreamSession();
+            ss.setStream(saved);
+            ss.setStatus("SCHEDULED");
+            ss.setSpecification("Created/Scheduled");
+            ss.setStartedAt(null);
+            ss.setStoppedAt(null);
+            streamSessionRepository.save(ss);
         }
 
-        // 2. Lưu Stream
-        Stream savedStream = streamRepository.save(stream);
-
-        // 3. AUTO TẠO StreamSession SCHEDULED (nếu có timeStart & autoStart)
-        if (Boolean.TRUE.equals(savedStream.getAutoStart())
-                && savedStream.getTimeStart() != null
-                && savedStream.getTimeStart().isAfter(java.time.LocalDateTime.now())) {
-
-            // tìm device rảnh
-            List<Device> devices = deviceRepository.findAvailableDevices();
-            if (devices.isEmpty()) {
-                throw new RuntimeException("Không còn device trống để schedule");
-            }
-
-            Device device = devices.get(0);
-
-            StreamSession session = StreamSession.builder()
-                    .stream(savedStream)
-                    .device(device)
-                    .status("SCHEDULED")
-                    .specification("Auto scheduled")
-                    .build();
-
-            streamSessionRepository.save(session);
-        }
-
-        return savedStream;
+        return saved;
     }
 
     @Override
@@ -102,89 +110,77 @@ public class StreamServiceImpl implements StreamService {
         Stream existingStream = streamRepository.findById(stream.getId())
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        // Lấy tất cả session theo streamId bằng paging vòng lặp (không dùng List)
-        int page = 0;
-        int size = 200;
-        Page<StreamSession> sessionsPage;
+        // Xóa session (nếu ACTIVE thì stop FFmpeg + complete youtube)
+        StreamSession ss = streamSessionRepository
+                .findTopByStreamIdOrderByIdDesc(existingStream.getId())
+                .orElse(null);
 
-        do {
-            sessionsPage = streamSessionRepository.findByStreamId(
-                    existingStream.getId(),
-                    PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
-
-            for (StreamSession session : sessionsPage.getContent()) {
-
-                // 1) Nếu ACTIVE -> stop ffmpeg + transition youtube
-                if ("ACTIVE".equalsIgnoreCase(session.getStatus())) {
-
-                    String streamKey = existingStream.getKeyStream();
-                    if (streamKey != null && !streamKey.isBlank()) {
-                        ffmpegService.stopStream(streamKey);
-                    }
-
-                    try {
-                        youTubeLiveService.transitionBroadcast(existingStream, "complete");
-                    } catch (Exception ignore) {
-                    }
+        if (ss != null) {
+            if ("ACTIVE".equalsIgnoreCase(ss.getStatus())) {
+                String streamKey = existingStream.getKeyStream();
+                if (streamKey != null && !streamKey.isBlank()) {
+                    ffmpegService.stopStream(streamKey);
                 }
-
-                // 2) Giảm currentSession của device
-                Device device = session.getDevice();
-                if (device != null) {
-                    int current = device.getCurrentSession() == null ? 0 : device.getCurrentSession();
-                    device.setCurrentSession(Math.max(0, current - 1));
-                    deviceRepository.save(device);
+                try {
+                    youTubeLiveService.transitionBroadcast(existingStream, "complete");
+                } catch (Exception ignore) {
                 }
-
-                // 3) Xóa session
-                streamSessionRepository.delete(session);
             }
+            streamSessionRepository.delete(ss);
+        }
 
-            page++;
-        } while (!sessionsPage.isLast());
-
-        // 4) Xóa stream
         streamRepository.delete(existingStream);
     }
 
     @Override
     @Transactional
     public Stream updateStream(Integer id, Stream stream) {
+
         Stream existing = streamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        if (stream.getName() != null) {
+        if (stream.getName() != null)
             existing.setName(stream.getName());
-        }
-        if (stream.getKeyStream() != null) {
+        if (stream.getKeyStream() != null)
             existing.setKeyStream(stream.getKeyStream());
-        }
-        if (stream.getVideoList() != null) {
+        if (stream.getVideoList() != null)
             existing.setVideoList(stream.getVideoList());
+
+        // ✅ cho phép update cả null (khi FE gửi null)
+        existing.setTimeStart(stream.getTimeStart());
+        existing.setDuration(stream.getDuration());
+
+        Stream saved = streamRepository.save(existing);
+
+        // ✅ Nếu stream đang STOPPED mà user sửa lại -> chuyển về SCHEDULED
+        StreamSession ss = streamSessionRepository
+                .findTopByStreamIdOrderByIdDesc(id)
+                .orElse(null);
+
+        if (ss != null && ("STOPPED".equalsIgnoreCase(ss.getStatus())
+                || "ERROR".equalsIgnoreCase(ss.getStatus()))) {
+            ss.setStatus("SCHEDULED");
+            ss.setSpecification("Edited -> rescheduled");
+            ss.setStartedAt(null);
+            ss.setStoppedAt(null);
+            ss.setLastError(null);
+            ss.setLastErrorAt(null);
+            streamSessionRepository.save(ss);
         }
-        if (stream.getTimeStart() != null) {
-            existing.setTimeStart(stream.getTimeStart());
+
+        // ✅ Nếu chưa có session mà có timeStart => tạo SCHEDULED
+        if (ss == null && saved.getTimeStart() != null) {
+            StreamSession newSs = new StreamSession();
+            newSs.setStream(saved);
+            newSs.setStatus("SCHEDULED");
+            newSs.setSpecification("Edited -> scheduled");
+            streamSessionRepository.save(newSs);
         }
-        if (stream.getDuration() != null) {
-            existing.setDuration(stream.getDuration());
-        }
 
-        return streamRepository.save(existing);
-    }
-
-    @Override
-    public Page<Stream> getStreamsByChannelId(Integer channelId, int page, int size, String sort) {
-        int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), 100);
-
-        Sort sortObj = parseSort(sort);
-        Pageable pageable = PageRequest.of(safePage, safeSize, sortObj);
-
-        return streamRepository.findByChannelId(channelId, pageable);
+        return saved;
     }
 
     private Sort parseSort(String sort) {
-        // format: "timeStart,desc" hoặc "id,asc"
         if (sort == null || sort.trim().isEmpty()) {
             return Sort.by(Sort.Direction.DESC, "id");
         }
@@ -195,11 +191,10 @@ public class StreamServiceImpl implements StreamService {
                     ? Sort.Direction.fromString(parts[1].trim())
                     : Sort.Direction.ASC;
 
-            // whitelist field tránh lỗi runtime
             if (!isAllowedSortField(field))
                 field = "id";
-
             return Sort.by(dir, field);
+
         } catch (Exception e) {
             return Sort.by(Sort.Direction.DESC, "id");
         }
@@ -211,5 +206,4 @@ public class StreamServiceImpl implements StreamService {
                 || field.equals("name")
                 || field.equals("duration");
     }
-
 }

@@ -4,8 +4,6 @@ import "./sidebar.scss";
 
 const Sidebar = ({ activeMenu, onChangeMenu }) => {
   const menuItems = [
-    { key: "device", label: "Máy đang hoạt động" },
-    { key: "channel", label: "Danh sách kênh" },
     { key: "stream", label: "Danh sách luồng" },
     { key: "streamSession", label: "Luồng đang hoạt động" },
   ];

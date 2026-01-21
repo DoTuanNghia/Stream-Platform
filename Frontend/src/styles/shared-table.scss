@@ -7,7 +7,7 @@
 
   /* Quan trọng: không chặn overflow-x để còn scroll ngang */
   overflow-x: auto;
-  overflow-y: hidden;
+  // overflow-y: auto;
 
   -webkit-overflow-scrolling: touch;
 }

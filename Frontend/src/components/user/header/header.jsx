@@ -74,11 +74,6 @@ const Header = ({ onLogout }) => {
       </div>
 
       <div className="header__right">
-        <button className="header__icon-btn" title="Thông báo" type="button">
-          🔔
-          <span className="header__badge">3</span>
-        </button>
-
         <div className="header__user" onClick={toggleMenu}>
           <div className="header__user-info">
             <span className="header__user-name">{displayName}</span>
