@@ -32,6 +32,12 @@ public class StreamSession {
     @Column(name = "stopped_at")
     private LocalDateTime stoppedAt;
 
+    @Column(name = "last_error", columnDefinition = "TEXT")
+    private String lastError;
+
+    @Column(name = "last_error_at")
+    private LocalDateTime lastErrorAt;
+
     @OneToOne
     @JoinColumn(name = "stream_id", nullable = false, unique = true)
     @JsonIgnoreProperties({ "streamSession" })

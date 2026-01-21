@@ -46,7 +46,6 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Override
     public Page<StreamSession> getAllStreamSessions(Integer userId, int page, int size, String sort) {
         Pageable pageable = buildPageable(page, size, sort);
-        // ✅ trả ACTIVE + SCHEDULED theo user (ẩn STOPPED)
         return streamSessionRepository.findActiveOrScheduledByUserId(userId, pageable);
     }
 
@@ -59,12 +58,13 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Override
     public Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds) {
         Map<Integer, String> map = new LinkedHashMap<>();
-        if (streamIds == null || streamIds.isEmpty()) return map;
+        if (streamIds == null || streamIds.isEmpty())
+            return map;
 
         for (Integer streamId : streamIds) {
-            if (streamId == null) continue;
+            if (streamId == null)
+                continue;
 
-            // ✅ lấy bản ghi mới nhất cho chắc (dù stream_id unique)
             StreamSession ss = streamSessionRepository
                     .findTopByStreamIdOrderByIdDesc(streamId)
                     .orElse(null);
@@ -94,7 +94,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                     ? Sort.Direction.fromString(parts[1].trim())
                     : Sort.Direction.ASC;
 
-            if (!isAllowedSortField(field)) field = "id";
+            if (!isAllowedSortField(field))
+                field = "id";
             return Sort.by(dir, field);
         } catch (Exception e) {
             return Sort.by(Sort.Direction.DESC, "id");
@@ -118,11 +119,11 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Transactional
     public StreamSession stopStreamSession(StreamSession session) {
 
-        if (session == null) throw new RuntimeException("StreamSession is null");
+        if (session == null)
+            throw new RuntimeException("StreamSession is null");
 
         Stream stream = session.getStream();
 
-        // 1) Stop FFmpeg
         try {
             if (stream != null) {
                 String streamKey = stream.getKeyStream();
@@ -134,7 +135,6 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             e.printStackTrace();
         }
 
-        // 2) Transition YouTube -> complete (best effort)
         try {
             if (stream != null) {
                 youTubeLiveService.transitionBroadcast(stream, "complete");
@@ -143,7 +143,6 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             System.err.println("[STOP] transition complete failed (ignored): " + ex.getMessage());
         }
 
-        // 3) Update status STOPPED
         session.setStatus("STOPPED");
         session.setStoppedAt(LocalDateTime.now());
         streamSessionRepository.save(session);
@@ -168,47 +167,43 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         if (session == null) {
             session = new StreamSession();
             session.setStream(stream);
-            session.setSpecification("Manual start");
-        } else {
-            session.setSpecification("Manual start (re-run)");
         }
 
-        session.setStatus("ACTIVE");
-        session.setStartedAt(LocalDateTime.now());
+        session.setSpecification("Manual start");
+        session.setStartedAt(null);
         session.setStoppedAt(null);
+        session.setLastError(null);
+        session.setLastErrorAt(null);
         streamSessionRepository.save(session);
 
-        // start ffmpeg (giữ logic cũ)
-        try {
-            String streamKey = stream.getKeyStream();
-            if (streamKey == null || streamKey.isBlank()) {
-                throw new RuntimeException("Stream key trống");
-            }
-
-            String videoSource = null;
-            if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
-                videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .map(this::normalizeVideoSource)
-                        .findFirst()
-                        .orElse(null);
-            }
-
-            ffmpegService.startStream(videoSource, null, streamKey);
-
-        } catch (Exception e) {
-            System.err.println("[START] Cannot start FFmpeg for streamId=" + streamId);
-            e.printStackTrace();
+        String streamKey = stream.getKeyStream();
+        if (streamKey == null || streamKey.isBlank()) {
+            markError(session, "STREAM_KEY_EMPTY");
+            return session;
         }
 
-        return session;
+        String videoSource = resolveFirstVideoSource(stream);
+
+        try {
+            ffmpegService.startStream(videoSource, null, streamKey);
+
+            session.setStatus("ACTIVE");
+            session.setStartedAt(LocalDateTime.now());
+            session.setStoppedAt(null);
+            streamSessionRepository.save(session);
+
+            return session;
+
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "FFMPEG_START_FAILED";
+            markError(session, msg);
+            throw new RuntimeException("Không thể bắt đầu stream: " + msg);
+        }
     }
 
     @Override
     @Transactional
     public StreamSession startScheduledSession(Integer streamSessionId) {
-
         StreamSession session = streamSessionRepository.findById(streamSessionId)
                 .orElseThrow(() -> new RuntimeException("StreamSession not found"));
 
@@ -218,32 +213,42 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         Stream stream = session.getStream();
 
-        session.setStatus("ACTIVE");
-        session.setStartedAt(LocalDateTime.now());
-        session.setStoppedAt(null);
+        session.setSpecification("Auto start");
+        session.setLastError(null);
+        session.setLastErrorAt(null);
         streamSessionRepository.save(session);
 
         String streamKey = stream.getKeyStream();
         if (streamKey == null || streamKey.isBlank()) {
+            markError(session, "STREAM_KEY_EMPTY");
             throw new RuntimeException("Stream key trống");
         }
 
-        String videoSource = null;
-        if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
-            videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(this::normalizeVideoSource)
-                    .findFirst()
-                    .orElse(null);
+        String videoSource = resolveFirstVideoSource(stream);
+
+        try {
+            ffmpegService.startStream(videoSource, null, streamKey);
+
+            session.setStatus("ACTIVE");
+            session.setStartedAt(LocalDateTime.now());
+            session.setStoppedAt(null);
+            streamSessionRepository.save(session);
+
+            return session;
+
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "FFMPEG_START_FAILED";
+            markError(session, msg);
+
+            // scheduler không cần throw, để transaction commit và lưu ERROR
+            return session;
         }
 
-        ffmpegService.startStream(videoSource, null, streamKey);
-        return session;
     }
 
     private String normalizeVideoSource(String raw) {
-        if (raw == null) return null;
+        if (raw == null)
+            return null;
         raw = raw.trim();
 
         Pattern p = Pattern.compile("https?://drive\\.google\\.com/file/d/([^/]+)/view.*");
@@ -259,5 +264,25 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         Pageable pageable = buildPageable(page, size, sort);
         String s = (status == null || status.isBlank()) ? null : status.trim();
         return streamSessionRepository.findAllByOptionalStatus(s, pageable);
+    }
+
+    private void markError(StreamSession session, String msg) {
+        session.setStatus("ERROR");
+        session.setLastError(msg);
+        session.setLastErrorAt(LocalDateTime.now());
+        streamSessionRepository.save(session);
+    }
+
+    private String resolveFirstVideoSource(Stream stream) {
+        String videoSource = null;
+        if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
+            videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(this::normalizeVideoSource)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return videoSource;
     }
 }

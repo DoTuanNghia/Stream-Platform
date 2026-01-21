@@ -69,10 +69,11 @@ public class StreamServiceImpl implements StreamService {
 
         // (tuỳ bạn) nếu còn dùng Youtube schedule, bạn bật lại:
         // try {
-        //     String streamKey = youTubeLiveService.createScheduledBroadcastForStream(stream);
-        //     stream.setKeyStream(streamKey);
+        // String streamKey =
+        // youTubeLiveService.createScheduledBroadcastForStream(stream);
+        // stream.setKeyStream(streamKey);
         // } catch (Exception e) {
-        //     throw new RuntimeException("Không tạo được lịch YouTube", e);
+        // throw new RuntimeException("Không tạo được lịch YouTube", e);
         // }
 
         Stream saved = streamRepository.save(stream);
@@ -83,7 +84,8 @@ public class StreamServiceImpl implements StreamService {
                     .findTopByStreamIdOrderByIdDesc(saved.getId())
                     .orElse(null);
 
-            if (ss == null) ss = new StreamSession();
+            if (ss == null)
+                ss = new StreamSession();
             ss.setStream(saved);
             ss.setStatus("SCHEDULED");
             ss.setSpecification("Created/Scheduled");
@@ -115,7 +117,8 @@ public class StreamServiceImpl implements StreamService {
                 }
                 try {
                     youTubeLiveService.transitionBroadcast(existingStream, "complete");
-                } catch (Exception ignore) {}
+                } catch (Exception ignore) {
+                }
             }
             streamSessionRepository.delete(ss);
         }
@@ -130,9 +133,12 @@ public class StreamServiceImpl implements StreamService {
         Stream existing = streamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        if (stream.getName() != null) existing.setName(stream.getName());
-        if (stream.getKeyStream() != null) existing.setKeyStream(stream.getKeyStream());
-        if (stream.getVideoList() != null) existing.setVideoList(stream.getVideoList());
+        if (stream.getName() != null)
+            existing.setName(stream.getName());
+        if (stream.getKeyStream() != null)
+            existing.setKeyStream(stream.getKeyStream());
+        if (stream.getVideoList() != null)
+            existing.setVideoList(stream.getVideoList());
 
         // ✅ cho phép update cả null (khi FE gửi null)
         existing.setTimeStart(stream.getTimeStart());
@@ -145,11 +151,14 @@ public class StreamServiceImpl implements StreamService {
                 .findTopByStreamIdOrderByIdDesc(id)
                 .orElse(null);
 
-        if (ss != null && "STOPPED".equalsIgnoreCase(ss.getStatus())) {
+        if (ss != null && ("STOPPED".equalsIgnoreCase(ss.getStatus())
+                || "ERROR".equalsIgnoreCase(ss.getStatus()))) {
             ss.setStatus("SCHEDULED");
             ss.setSpecification("Edited -> rescheduled");
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
+            ss.setLastError(null);
+            ss.setLastErrorAt(null);
             streamSessionRepository.save(ss);
         }
 
@@ -176,7 +185,8 @@ public class StreamServiceImpl implements StreamService {
                     ? Sort.Direction.fromString(parts[1].trim())
                     : Sort.Direction.ASC;
 
-            if (!isAllowedSortField(field)) field = "id";
+            if (!isAllowedSortField(field))
+                field = "id";
             return Sort.by(dir, field);
 
         } catch (Exception e) {
