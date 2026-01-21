@@ -172,26 +172,24 @@ const Stream = () => {
   return (
     <>
       <section className="card card--fill">
-        <div className="card__header">
-          <div>
-            <h2 className="card__title">Danh sách luồng của bạn</h2>
-          </div>
-          <button className="btn btn--primary" onClick={openAddModal}>
-            Thêm Luồng
-          </button>
-        </div>
+        <div className="card__header card__header--stack">
+          <h2 className="card__title">Danh sách luồng của bạn</h2>
 
-        {error && <p className="card__subtitle card__subtitle--error">{error}</p>}
-
-        {!loading && totalElements > 0 && (
-          <div className="table__toolbar">
-            <div className="table__pagination">
-              <span className="table__pageinfo">
+          <div className="card__headerRow">
+            {!loading && totalElements > 0 && (
+              <span className="header__total">
                 Tổng: <strong>{totalElements}</strong> luồng
               </span>
-            </div>
+            )}
+
+            <button className="btn btn--primary btn--lg" onClick={openAddModal}>
+              Thêm Luồng
+            </button>
           </div>
-        )}
+        </div>
+
+
+        {error && <p className="card__subtitle card__subtitle--error">{error}</p>}
 
         <div className="table-wrapper table-wrapper--vscroll" ref={wrapperRef}>
           <table className="table">
@@ -244,10 +242,10 @@ const Stream = () => {
                               blocked
                                 ? "Luồng đang ACTIVE, không thể Stream Ngay"
                                 : status === "STOPPED"
-                                ? "Luồng đã STOPPED, có thể sửa và stream lại"
-                                : status === "SCHEDULED"
-                                ? "Luồng đang SCHEDULED, có thể Stream Ngay"
-                                : ""
+                                  ? "Luồng đã STOPPED, có thể sửa và stream lại"
+                                  : status === "SCHEDULED"
+                                    ? "Luồng đang SCHEDULED, có thể Stream Ngay"
+                                    : ""
                             }
                           >
                             Stream Ngay

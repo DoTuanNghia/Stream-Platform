@@ -136,21 +136,22 @@ const StreamSession = () => {
   return (
     <section className="card card--fill">
       <div className="card__header">
-        <div>
+        <div className="card__headerLeft">
           <h2 className="card__title">Luồng đang hoạt động</h2>
-          <p className="card__subtitle">
-            {totalText || (
-              <>
-                Reload ngay hoặc tự động sau <strong>7</strong> giây
-              </>
-            )}
-          </p>
-        </div>
 
-        <div className="card__headerActions">
-          <button className="btn btn--ghost" onClick={fetchSessions}>
-            Reload ngay
-          </button>
+          <div className="card__headerRow">
+            <span className="header__total">
+              {totalText ? totalText : (
+                <>
+                  Reload ngay hoặc tự động sau <strong>7</strong> giây
+                </>
+              )}
+            </span>
+
+            <button className="btn btn--ghost btn--lg" onClick={fetchSessions}>
+              Reload ngay
+            </button>
+          </div>
         </div>
       </div>
 

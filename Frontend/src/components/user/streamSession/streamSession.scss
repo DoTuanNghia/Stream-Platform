@@ -1,17 +1,67 @@
 @use "../../../styles/shared-table" as *;
 
+/* =========================
+   STREAM SESSION - HEADER + SCROLL TABLE
+   ========================= */
+
 .card {
+  background: #020617;
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  border: 1px solid #1f2937;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
+
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
 }
 
+/* Header không co */
 .card__header {
   flex: 0 0 auto;
+  margin-bottom: 12px;
 }
 
-/* chỉ vùng này scroll */
+.card__headerLeft {
+  min-width: 0;
+}
+
+/* Title to hơn */
+.card__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f9fafb;
+  letter-spacing: 0.2px;
+}
+
+/* Row dưới title: tổng + nút reload nằm ngang */
+.card__headerRow {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* ⬅️ tổng bên trái, nút bên phải */
+  gap: 12px;
+}
+
+/* text tổng */
+.header__total {
+  font-size: 13px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Button to hơn */
+.btn--lg {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+/* ✅ CHỈ vùng này scroll */
 .card > .table-wrapper.table-wrapper--vscroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -27,6 +77,7 @@
   scrollbar-gutter: stable;
 }
 
+/* Sticky header */
 .card > .table-wrapper.table-wrapper--vscroll thead th {
   position: sticky;
   top: 0;
@@ -42,6 +93,7 @@
   table-layout: auto;
 }
 
+/* Action không bị kéo dãn */
 .card > .table-wrapper.table-wrapper--vscroll th:last-child,
 .card > .table-wrapper.table-wrapper--vscroll td:last-child {
   width: 1%;
