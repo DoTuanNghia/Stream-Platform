@@ -285,4 +285,10 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         }
         return videoSource;
     }
+
+    @Override
+    public List<StreamSession> getAllStreamSessionsList(Integer userId, String sort) {
+        Sort sortObj = parseSort(sort);
+        return streamSessionRepository.findActiveOrScheduledByUserIdList(userId, sortObj);
+    }
 }

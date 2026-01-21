@@ -53,8 +53,11 @@ public class StreamSessionController {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .map(s -> {
-                    try { return Integer.valueOf(s); }
-                    catch (Exception e) { return null; }
+                    try {
+                        return Integer.valueOf(s);
+                    } catch (Exception e) {
+                        return null;
+                    }
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -148,4 +151,20 @@ public class StreamSessionController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/list")
+    public ResponseEntity<Map<String, Object>> getAllStreamSessionsList(
+            @RequestParam(required = false) Integer userId,
+            @RequestParam(defaultValue = "id,desc") String sort) {
+
+        var list = streamSessionService.getAllStreamSessionsList(userId, sort);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "StreamSessions fetched successfully");
+        response.put("streamSessions", list);
+        response.put("totalElements", list.size());
+
+        return ResponseEntity.ok(response);
+    }
+
 }

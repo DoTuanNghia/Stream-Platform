@@ -7,6 +7,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Sort;
+import java.util.List;
 
 import com.stream.backend.entity.StreamSession;
 
@@ -39,4 +41,14 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
             where (:status is null or lower(ss.status) = lower(:status))
          """)
    Page<StreamSession> findAllByOptionalStatus(@Param("status") String status, Pageable pageable);
+
+   @Query("""
+            select ss
+            from StreamSession ss
+            join ss.stream s
+            join s.owner u
+            where lower(ss.status) in ('active','scheduled','error')
+              and (:userId is null or u.id = :userId)
+         """)
+   List<StreamSession> findActiveOrScheduledByUserIdList(@Param("userId") Integer userId, Sort sort);
 }

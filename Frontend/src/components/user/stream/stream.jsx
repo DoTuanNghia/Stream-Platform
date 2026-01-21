@@ -175,7 +175,6 @@ const Stream = () => {
         <div className="card__header">
           <div>
             <h2 className="card__title">Danh sách luồng của bạn</h2>
-            <p className="card__subtitle">Hiển thị tất cả streams</p>
           </div>
           <button className="btn btn--primary" onClick={openAddModal}>
             Thêm Luồng

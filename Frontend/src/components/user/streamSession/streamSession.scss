@@ -1,74 +1,49 @@
-// src/components/streamSession/streamSession.scss
 @use "../../../styles/shared-table" as *;
 
-
 .card {
-  background: #020617;
-  border-radius: 14px;
-  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.card__header {
+  flex: 0 0 auto;
+}
+
+/* chỉ vùng này scroll */
+.card > .table-wrapper.table-wrapper--vscroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 0;
+
+  overflow: auto !important;
+
   border: 1px solid #1f2937;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  background: #020617;
 
-  &__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  &__title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #f9fafb;
-  }
-
-  &__subtitle {
-    font-size: 12px;
-    color: #9ca3af;
-    margin-top: 4px;
-  }
-}
-
-/* Scroll ngang chắc chắn */
-.table-wrapper {
-  overflow-x: auto !important;
-  overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
-
-  /* Quan trọng: nền của vùng scroll giống nền table để không bị “đen xì” */
-  background: #020617;
+  scrollbar-gutter: stable;
 }
 
-/* Sửa lỗi vùng đen sau Action:
-   - width: 100% để table phủ hết container
-   - min-width để khi màn hình nhỏ thì vẫn tràn và có scroll */
-.table {
-  width: 100% !important;
-  min-width: 1300px; /* bảng nhiều cột -> nhỏ sẽ scroll */
-  background: #020617;
-}
-
-/* (Tuỳ chọn) giữ header dính nền */
-.table thead {
+.card > .table-wrapper.table-wrapper--vscroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: #111827;
 }
 
-/* Pagination UI */
-.table__toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin: 10px 0 12px;
+/* FIX hở/cách cột */
+.card > .table-wrapper.table-wrapper--vscroll .table {
+  width: 100% !important;
+  min-width: 1200px;
+  border-collapse: collapse;
+  table-layout: auto;
 }
 
-.table__pagination {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.table__pageinfo {
-  color: #cbd5e1;
-  font-size: 13px;
+.card > .table-wrapper.table-wrapper--vscroll th:last-child,
+.card > .table-wrapper.table-wrapper--vscroll td:last-child {
+  width: 1%;
   white-space: nowrap;
 }

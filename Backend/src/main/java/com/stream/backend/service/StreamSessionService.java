@@ -24,4 +24,6 @@ public interface StreamSessionService {
     StreamSession startScheduledSession(Integer streamSessionId);
 
     Page<StreamSession> adminGetAll(String status, int page, int size, String sort);
+
+    List<StreamSession> getAllStreamSessionsList(Integer userId, String sort);
 }
