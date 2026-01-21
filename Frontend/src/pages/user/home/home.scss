@@ -1,43 +1,37 @@
-// src/pages/home/home.scss
-
 .layout {
-  /* chiếm toàn bộ viewport, không phụ thuộc nội dung */
   position: fixed;
-  inset: 0;                /* top:0; right:0; bottom:0; left:0 */
+  inset: 0;
   display: flex;
   flex-direction: column;
   background: #020617;
   color: #e5e7eb;
 }
 
-/* Phần body = toàn bộ chiều cao còn lại dưới header */
 .layout__body {
   flex: 1;
   display: flex;
-  overflow: hidden;        /* không cho tràn ra ngoài màn hình */
+  overflow: hidden;
+  min-height: 0; /* ✅ */
 }
 
-/* Sidebar chiếm chiều cao 100% */
 .sidebar {
   height: 100%;
 }
 
-/* Vùng content chiếm hết phần còn lại */
 .layout__content {
   flex: 1;
   padding: 20px 24px;
-  overflow-y: auto;        /* bảng dài thì scroll trong vùng này */
+
+  overflow: hidden;      /* ✅ không scroll cả trang */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;         /* ✅ */
+
   background: #020617;
 }
 
-/* Scrollbar mảnh cho đẹp */
-.layout__content::-webkit-scrollbar {
-  width: 6px;
-}
-.layout__content::-webkit-scrollbar-track {
-  background: transparent;
-}
-.layout__content::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 999px;
+/* ✅ cái page trong content phải “ăn” chiều cao */
+.layout__content > * {
+  flex: 1;
+  min-height: 0;
 }

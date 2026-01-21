@@ -33,7 +33,7 @@
 /* Scroll ngang chắc chắn */
 .table-wrapper {
   overflow-x: auto !important;
-  overflow-y: hidden !important;
+  overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
 
   /* Quan trọng: nền của vùng scroll giống nền table để không bị “đen xì” */

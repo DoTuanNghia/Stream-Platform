@@ -33,13 +33,16 @@ public class StreamController {
     }
 
     private Integer resolveUserId(Integer userIdParam, HttpServletRequest request) {
-        if (userIdParam != null) return userIdParam;
+        if (userIdParam != null)
+            return userIdParam;
 
         // fallback: header X-USER-ID (nếu bạn đang dùng kiểu này)
         try {
             String h = request.getHeader("X-USER-ID");
-            if (h != null && !h.isBlank()) return Integer.valueOf(h.trim());
-        } catch (Exception ignore) {}
+            if (h != null && !h.isBlank())
+                return Integer.valueOf(h.trim());
+        } catch (Exception ignore) {
+        }
 
         return null;
     }
@@ -108,4 +111,26 @@ public class StreamController {
         Stream updated = streamService.updateStream(streamId, stream);
         return ResponseEntity.ok(updated);
     }
+
+    @GetMapping("/all")
+    public ResponseEntity<Map<String, Object>> getAllStreamsByUserId(
+            @RequestParam(required = false) Integer userId,
+            @RequestParam(defaultValue = "name,asc") String sort,
+            HttpServletRequest request) {
+
+        Integer uid = resolveUserId(userId, request);
+        if (uid == null) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("message", "Missing userId (query param) or X-USER-ID header");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        var list = streamService.getStreamsByUserId(uid, sort);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("streams", list);
+        res.put("totalElements", list.size());
+        return ResponseEntity.ok(res);
+    }
+
 }

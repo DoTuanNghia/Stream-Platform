@@ -1,6 +1,8 @@
-// src/components/stream/stream.scss
 @use "../../../styles/shared-table" as *;
 
+/* =========================
+   STREAM - SCROLL TABLE ONLY
+   ========================= */
 
 .card {
   background: #020617;
@@ -9,73 +11,78 @@
   border: 1px solid #1f2937;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
 
-  &__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  &__title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #f9fafb;
-  }
-}
-
-/* ===== Scroll ngang cho table khi màn hình nhỏ ===== */
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto; // tạo thanh scroll ngang
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* ép bảng có chiều rộng tối thiểu để nhỏ là phải scroll */
-.table {
-  width: max-content;   // quan trọng: table không tự co về 100%
-  min-width: 1200px;    // tăng lên để chắc chắn tràn khi thu nhỏ
-}
-
-/* action không bị xuống dòng, dễ bấm */
-.table__actions {
-  display: inline-flex;
-  gap: 30px;
-  flex-wrap: nowrap;
-  white-space: nowrap;
-
-  .btn {
-    padding: 6px 14px;  
-    min-width: 60px;   
-    margin-right: 25px;  
-  }
-}
-
-/* ===== Pagination UI ===== */
-.table__toolbar {
+  /* card phải là flex column và cho phép con scroll */
   display: flex;
-  justify-content: flex-end;
-  margin: 10px 0 12px;
-
-  &--bottom {
-    margin: 12px 0 0;
-  }
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.table__pagination {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+/* header + toolbar không co */
+.card__header,
+.table__toolbar {
+  flex: 0 0 auto;
 }
 
-.table__pageinfo {
-  color: #cbd5e1;
-  font-size: 13px;
+/* ✅ CHỈ vùng này scroll (dọc + ngang) */
+.card > .table-wrapper.table-wrapper--vscroll {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  /* trick: cho flex item “ăn” hết phần còn lại */
+  height: 0;
+
+  /* ép override shared-table */
+  overflow: auto !important; /* both x & y */
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  background: #020617;
+
+  -webkit-overflow-scrolling: touch;
+
+  /* luôn chừa chỗ scrollbar để không bị “giật” layout */
+  scrollbar-gutter: stable;
+}
+
+/* ✅ sticky thead trong vùng scroll */
+.card > .table-wrapper.table-wrapper--vscroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #111827;
+}
+
+/* ✅ FIX “cách cột”: table phải phủ full wrapper
+   - width: 100% để không hở bên phải
+   - min-width để khi màn hình nhỏ thì vẫn có scroll ngang
+*/
+.card > .table-wrapper.table-wrapper--vscroll .table {
+  width: 100% !important;
+  min-width: 1200px;
+
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+/* (tuỳ chọn) cột Action không kéo rộng thừa */
+.card > .table-wrapper.table-wrapper--vscroll th:last-child,
+.card > .table-wrapper.table-wrapper--vscroll td:last-child {
+  width: 1%;
   white-space: nowrap;
 }
 
-.btn--disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: auto; 
+/* scrollbar đẹp */
+.card > .table-wrapper.table-wrapper--vscroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.card > .table-wrapper.table-wrapper--vscroll::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 999px;
+}
+.card > .table-wrapper.table-wrapper--vscroll::-webkit-scrollbar-track {
+  background: transparent;
 }

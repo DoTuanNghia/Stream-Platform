@@ -9,6 +9,8 @@ public interface StreamService {
 
     List<Stream> getStreamsByUserId(Integer userId);
 
+    List<Stream> getStreamsByUserId(Integer userId, String sort);
+
     Stream createStream(Stream stream, Integer userId);
 
     void deleteStream(Stream stream);

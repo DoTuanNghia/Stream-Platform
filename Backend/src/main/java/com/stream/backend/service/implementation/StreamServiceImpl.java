@@ -60,6 +60,12 @@ public class StreamServiceImpl implements StreamService {
     }
 
     @Override
+    public List<Stream> getStreamsByUserId(Integer userId, String sort) {
+        Sort sortObj = parseSort(sort);
+        return streamRepository.findByOwnerId(userId, sortObj);
+    }
+
+    @Override
     @Transactional
     public Stream createStream(Stream stream, Integer userId) {
 
