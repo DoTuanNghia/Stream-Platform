@@ -26,4 +26,10 @@ public interface StreamSessionService {
     Page<StreamSession> adminGetAll(String status, int page, int size, String sort);
 
     List<StreamSession> getAllStreamSessionsList(Integer userId, String sort);
+
+    /**
+     * Xóa file video và reset stream về trạng thái ban đầu (NONE)
+     * Chỉ xóa file video, giữ nguyên stream trên web để có thể lên lịch lại
+     */
+    void deleteVideoAndResetStream(StreamSession session);
 }
