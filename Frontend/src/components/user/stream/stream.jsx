@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
+import AddStreamsBulk from "./addStream/addStreamsBulk.jsx";
 import axiosClient from "../../../api/axiosClient.js";
 
 const formatTime = (iso) => {
@@ -25,10 +26,17 @@ const getCurrentUserId = () => {
   }
 };
 
+// ✅ Natural sort: Demo 2 < Demo 10
+const collator = new Intl.Collator("vi", {
+  numeric: true,
+  sensitivity: "base",
+});
+
 const Stream = () => {
   const [streams, setStreams] = useState([]);
   const [streamStatusMap, setStreamStatusMap] = useState({});
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [editingStream, setEditingStream] = useState(null);
@@ -72,14 +80,18 @@ const Stream = () => {
 
       // ✅ gọi endpoint all (không page/size)
       const streamRes = await axiosClient.get(`/streams/all`, {
-        params: { userId, sort: "name,asc" },
+        params: { userId, sort: "name,asc" }, // BE sort chuỗi, FE sẽ sort lại natural
       });
 
       const list = streamRes.streams || [];
-      setStreams(list);
-      setTotalElements(Number(streamRes.totalElements ?? list.length) || list.length);
 
-      const mapNew = await fetchStatusForList(list);
+      // ✅ Natural sort ở FE theo name
+      const sorted = [...list].sort((a, b) => collator.compare(a?.name || "", b?.name || ""));
+
+      setStreams(sorted);
+      setTotalElements(Number(streamRes.totalElements ?? sorted.length) || sorted.length);
+
+      const mapNew = await fetchStatusForList(sorted);
       setStreamStatusMap(mapNew);
 
       // scroll về top (khi refresh)
@@ -125,6 +137,23 @@ const Stream = () => {
     }
   };
 
+  const handleSaveStreamsBulk = async (items) => {
+    if (!userId) {
+      alert("Không xác định được userId (chưa đăng nhập?).");
+      return;
+    }
+    try {
+      const payload = { items };
+      await axiosClient.post(`/streams/bulk`, payload, { params: { userId } });
+      setIsBulkOpen(false);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      const msg = err?.response?.data?.message || "Tạo nhiều luồng thất bại.";
+      alert(msg);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm("Xóa luồng này?")) return;
     try {
@@ -160,6 +189,9 @@ const Stream = () => {
     setEditingStream(null);
     setIsAddOpen(true);
   };
+  const openBulkModal = () => {
+    setIsBulkOpen(true);
+  };
   const openEditModal = (st) => {
     setEditingStream(st);
     setIsAddOpen(true);
@@ -167,6 +199,9 @@ const Stream = () => {
   const closeAddModal = () => {
     setIsAddOpen(false);
     setEditingStream(null);
+  };
+  const closeBulkModal = () => {
+    setIsBulkOpen(false);
   };
 
   return (
@@ -185,9 +220,11 @@ const Stream = () => {
             <button className="btn btn--primary btn--lg" onClick={openAddModal}>
               Thêm Luồng
             </button>
+            <button className="btn btn--ghost btn--lg" onClick={openBulkModal}>
+              Thêm nhiều luồng
+            </button>
           </div>
         </div>
-
 
         {error && <p className="card__subtitle card__subtitle--error">{error}</p>}
 
@@ -217,7 +254,10 @@ const Stream = () => {
               ) : (
                 streams.map((st, index) => {
                   const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
-                  const blocked = status === "ACTIVE";
+
+                  // ✅ Disable Stream Ngay khi ACTIVE hoặc STOPPED
+                  const blocked = status === "ACTIVE" || status === "STOPPED";
+
                   return (
                     <tr key={st.id}>
                       <td>{index + 1}</td>
@@ -234,15 +274,19 @@ const Stream = () => {
                           <button className="btn btn--ghost" onClick={() => openEditModal(st)}>
                             Sửa
                           </button>
+
                           <button
                             className={`btn btn--success ${blocked ? "btn--disabled" : ""}`}
-                            onClick={() => handleStreamNow(st)}
+                            onClick={() => {
+                              if (blocked) return; 
+                              handleStreamNow(st);
+                            }}
                             aria-disabled={blocked}
                             title={
-                              blocked
+                              status === "ACTIVE"
                                 ? "Luồng đang ACTIVE, không thể Stream Ngay"
                                 : status === "STOPPED"
-                                  ? "Luồng đã STOPPED, có thể sửa và stream lại"
+                                  ? "Luồng đã STOPPED, hãy bấm Sửa để chuyển lại SCHEDULED rồi mới Stream"
                                   : status === "SCHEDULED"
                                     ? "Luồng đang SCHEDULED, có thể Stream Ngay"
                                     : ""
@@ -262,6 +306,7 @@ const Stream = () => {
       </section>
 
       <AddStream isOpen={isAddOpen} onClose={closeAddModal} onSave={handleSaveStream} initialData={editingStream} />
+      <AddStreamsBulk isOpen={isBulkOpen} onClose={closeBulkModal} onSave={handleSaveStreamsBulk} />
     </>
   );
 };
