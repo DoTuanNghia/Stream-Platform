@@ -299,20 +299,36 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     @Override
     @Transactional
     public void deleteVideoAndResetStream(StreamSession session) {
-        if (session == null) {
-            log.warn("[DELETE-VIDEO] Session is null");
+        if (session == null || session.getId() == null) {
+            log.warn("[DELETE-VIDEO] Session is null or has no ID");
             return;
         }
 
-        Stream stream = session.getStream();
-        if (stream == null) {
-            log.warn("[DELETE-VIDEO] Stream is null for sessionId={}", session.getId());
+        // Reload entities within transaction to ensure they're managed
+        StreamSession managedSession = streamSessionRepository.findById(session.getId())
+                .orElse(null);
+        if (managedSession == null) {
+            log.warn("[DELETE-VIDEO] Session not found: sessionId={}", session.getId());
             return;
         }
 
-        String videoList = stream.getVideoList();
+        Stream stream = managedSession.getStream();
+        if (stream == null || stream.getId() == null) {
+            log.warn("[DELETE-VIDEO] Stream is null or has no ID for sessionId={}", managedSession.getId());
+            return;
+        }
+
+        // Reload stream to ensure it's managed
+        Stream managedStream = streamRepository.findById(stream.getId())
+                .orElse(null);
+        if (managedStream == null) {
+            log.warn("[DELETE-VIDEO] Stream not found: streamId={}", stream.getId());
+            return;
+        }
+
+        String videoList = managedStream.getVideoList();
         if (videoList == null || videoList.isBlank()) {
-            log.info("[DELETE-VIDEO] No video path for streamId={}, sessionId={}", stream.getId(), session.getId());
+            log.info("[DELETE-VIDEO] No video path for streamId={}, sessionId={}", managedStream.getId(), managedSession.getId());
         } else {
             // Xóa file video dựa vào đường dẫn
             String[] videoPaths = videoList.split("\\r?\\n");
@@ -343,16 +359,29 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             }
         }
 
-        // Xóa videoList và timeStart trong Stream để stream trở về trạng thái NONE hoàn toàn
+        // Lưu streamId và sessionId trước khi xóa để log
+        Integer streamId = managedStream.getId();
+        Integer sessionId = managedSession.getId();
+        
+        // Xóa StreamSession bằng ID để tránh lỗi cascade khi save Stream
+        streamSessionRepository.deleteById(sessionId);
+        
+        // Reload Stream sau khi xóa StreamSession để đảm bảo không còn reference
+        Stream refreshedStream = streamRepository.findById(streamId)
+                .orElse(null);
+        if (refreshedStream == null) {
+            log.warn("[DELETE-VIDEO] Stream not found after session deletion: streamId={}", streamId);
+            return;
+        }
+        
+        // Xóa videoList, timeStart và duration trong Stream để stream trở về trạng thái NONE hoàn toàn
         // User có thể lên lịch scheduled lại từ đầu
-        stream.setVideoList(null);
-        stream.setTimeStart(null);
-        streamRepository.save(stream);
+        refreshedStream.setVideoList(null);
+        refreshedStream.setTimeStart(null);
+        refreshedStream.setDuration(null);
+        streamRepository.save(refreshedStream);
 
-        // Xóa StreamSession để stream trở về trạng thái NONE
-        streamSessionRepository.delete(session);
-
-        log.info("[DELETE-VIDEO] Reset stream to NONE state: streamId={}, sessionId={}", stream.getId(), session.getId());
+        log.info("[DELETE-VIDEO] Reset stream to NONE state: streamId={}, sessionId={}", streamId, sessionId);
     }
 
     private boolean isLocalFile(String path) {
