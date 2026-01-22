@@ -1,0 +1,20 @@
+@use "../../../../styles/shared-table" as *;
+
+.bulk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.bulk-hint {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+@media (max-width: 820px) {
+  .bulk-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
