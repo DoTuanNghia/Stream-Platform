@@ -40,8 +40,8 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  /* ✅ nằm bên phải */
+  justify-content: space-between;
+  /* ✅ Tổng trái, nút phải */
   gap: 12px;
 }
 
@@ -50,6 +50,13 @@
   font-size: 13px;
   color: #cbd5e1;
   white-space: nowrap;
+}
+
+/* Nhóm 2 nút bên phải */
+.card__headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 /* Button lớn hơn */

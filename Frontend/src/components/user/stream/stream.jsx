@@ -217,12 +217,14 @@ const Stream = () => {
               </span>
             )}
 
-            <button className="btn btn--primary btn--lg" onClick={openAddModal}>
-              Thêm Luồng
-            </button>
-            <button className="btn btn--ghost btn--lg" onClick={openBulkModal}>
-              Thêm nhiều luồng
-            </button>
+            <div className="card__headerActions">
+              <button className="btn btn--primary btn--lg" onClick={openAddModal}>
+                Thêm Luồng
+              </button>
+              <button className="btn btn--info btn--lg" onClick={openBulkModal}>
+                Thêm Nhiều Luồng
+              </button>
+            </div>
           </div>
         </div>
 
