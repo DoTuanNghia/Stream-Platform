@@ -59,6 +59,14 @@
   font-weight: 600;
 }
 
+.btn--disabled,
+button[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none; // 🔥 CHẶN CLICK THẬT
+  filter: grayscale(30%);
+}
+
 /* =========================
    TABLE SCROLL ONLY
    ========================= */

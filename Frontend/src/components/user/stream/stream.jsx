@@ -226,7 +226,10 @@ const Stream = () => {
               ) : (
                 streams.map((st, index) => {
                   const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
-                  const blocked = status === "ACTIVE";
+
+                  // ✅ Disable Stream Ngay khi ACTIVE hoặc STOPPED
+                  const blocked = status === "ACTIVE" || status === "STOPPED";
+
                   return (
                     <tr key={st.id}>
                       <td>{index + 1}</td>
@@ -243,15 +246,19 @@ const Stream = () => {
                           <button className="btn btn--ghost" onClick={() => openEditModal(st)}>
                             Sửa
                           </button>
+
                           <button
                             className={`btn btn--success ${blocked ? "btn--disabled" : ""}`}
-                            onClick={() => handleStreamNow(st)}
+                            onClick={() => {
+                              if (blocked) return; 
+                              handleStreamNow(st);
+                            }}
                             aria-disabled={blocked}
                             title={
-                              blocked
+                              status === "ACTIVE"
                                 ? "Luồng đang ACTIVE, không thể Stream Ngay"
                                 : status === "STOPPED"
-                                  ? "Luồng đã STOPPED, có thể sửa và stream lại"
+                                  ? "Luồng đã STOPPED, hãy bấm Sửa để chuyển lại SCHEDULED rồi mới Stream"
                                   : status === "SCHEDULED"
                                     ? "Luồng đang SCHEDULED, có thể Stream Ngay"
                                     : ""
