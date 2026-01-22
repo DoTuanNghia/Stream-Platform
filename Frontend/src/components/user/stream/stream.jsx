@@ -25,6 +25,12 @@ const getCurrentUserId = () => {
   }
 };
 
+// ✅ Natural sort: Demo 2 < Demo 10
+const collator = new Intl.Collator("vi", {
+  numeric: true,
+  sensitivity: "base",
+});
+
 const Stream = () => {
   const [streams, setStreams] = useState([]);
   const [streamStatusMap, setStreamStatusMap] = useState({});
@@ -72,14 +78,18 @@ const Stream = () => {
 
       // ✅ gọi endpoint all (không page/size)
       const streamRes = await axiosClient.get(`/streams/all`, {
-        params: { userId, sort: "name,asc" },
+        params: { userId, sort: "name,asc" }, // BE sort chuỗi, FE sẽ sort lại natural
       });
 
       const list = streamRes.streams || [];
-      setStreams(list);
-      setTotalElements(Number(streamRes.totalElements ?? list.length) || list.length);
 
-      const mapNew = await fetchStatusForList(list);
+      // ✅ Natural sort ở FE theo name
+      const sorted = [...list].sort((a, b) => collator.compare(a?.name || "", b?.name || ""));
+
+      setStreams(sorted);
+      setTotalElements(Number(streamRes.totalElements ?? sorted.length) || sorted.length);
+
+      const mapNew = await fetchStatusForList(sorted);
       setStreamStatusMap(mapNew);
 
       // scroll về top (khi refresh)
@@ -187,7 +197,6 @@ const Stream = () => {
             </button>
           </div>
         </div>
-
 
         {error && <p className="card__subtitle card__subtitle--error">{error}</p>}
 

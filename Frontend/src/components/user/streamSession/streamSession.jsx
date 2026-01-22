@@ -48,6 +48,12 @@ const getCurrentUserId = () => {
   }
 };
 
+// ✅ Natural sort: Demo 2 < Demo 10
+const collator = new Intl.Collator("vi", {
+  numeric: true,
+  sensitivity: "base",
+});
+
 const StreamSession = () => {
   const [sessions, setSessions] = useState([]);
   const [ffStats, setFfStats] = useState({});
@@ -69,14 +75,24 @@ const StreamSession = () => {
       const userId = getCurrentUserId();
 
       const data = await axiosClient.get("/stream-sessions/list", {
-        params: { userId, sort: "id,desc" },
+        params: { userId, sort: "id,desc" }, // BE trả gì cũng được, FE sẽ sort lại
       });
 
       const list = data.streamSessions || [];
-      setSessions(list);
+
+      // ✅ Ưu tiên ACTIVE lên trước, rồi natural sort theo stream.name
+      const rank = (s) => (String(s?.status || "").toUpperCase() === "ACTIVE" ? 0 : 1);
+
+      const sorted = [...list].sort((a, b) => {
+        const r = rank(a) - rank(b);
+        if (r !== 0) return r;
+        return collator.compare(a?.stream?.name || "", b?.stream?.name || "");
+      });
+
+      setSessions(sorted);
 
       // lấy stat cho ACTIVE
-      const activeKeys = list
+      const activeKeys = sorted
         .filter((s) => String(s.status || "").toUpperCase() === "ACTIVE")
         .map((s) => (s.stream?.keyStream || "").trim())
         .filter(Boolean);
@@ -141,7 +157,9 @@ const StreamSession = () => {
 
           <div className="card__headerRow">
             <span className="header__total">
-              {totalText ? totalText : (
+              {totalText ? (
+                totalText
+              ) : (
                 <>
                   Reload ngay hoặc tự động sau <strong>7</strong> giây
                 </>
