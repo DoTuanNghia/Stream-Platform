@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
+import AddStreamsBulk from "./addStream/addStreamsBulk.jsx";
 import axiosClient from "../../../api/axiosClient.js";
 
 const formatTime = (iso) => {
@@ -35,6 +36,7 @@ const Stream = () => {
   const [streams, setStreams] = useState([]);
   const [streamStatusMap, setStreamStatusMap] = useState({});
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [editingStream, setEditingStream] = useState(null);
@@ -135,6 +137,23 @@ const Stream = () => {
     }
   };
 
+  const handleSaveStreamsBulk = async (items) => {
+    if (!userId) {
+      alert("Không xác định được userId (chưa đăng nhập?).");
+      return;
+    }
+    try {
+      const payload = { items };
+      await axiosClient.post(`/streams/bulk`, payload, { params: { userId } });
+      setIsBulkOpen(false);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      const msg = err?.response?.data?.message || "Tạo nhiều luồng thất bại.";
+      alert(msg);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm("Xóa luồng này?")) return;
     try {
@@ -170,6 +189,9 @@ const Stream = () => {
     setEditingStream(null);
     setIsAddOpen(true);
   };
+  const openBulkModal = () => {
+    setIsBulkOpen(true);
+  };
   const openEditModal = (st) => {
     setEditingStream(st);
     setIsAddOpen(true);
@@ -177,6 +199,9 @@ const Stream = () => {
   const closeAddModal = () => {
     setIsAddOpen(false);
     setEditingStream(null);
+  };
+  const closeBulkModal = () => {
+    setIsBulkOpen(false);
   };
 
   return (
@@ -194,6 +219,9 @@ const Stream = () => {
 
             <button className="btn btn--primary btn--lg" onClick={openAddModal}>
               Thêm Luồng
+            </button>
+            <button className="btn btn--ghost btn--lg" onClick={openBulkModal}>
+              Thêm nhiều luồng
             </button>
           </div>
         </div>
@@ -278,6 +306,7 @@ const Stream = () => {
       </section>
 
       <AddStream isOpen={isAddOpen} onClose={closeAddModal} onSave={handleSaveStream} initialData={editingStream} />
+      <AddStreamsBulk isOpen={isBulkOpen} onClose={closeBulkModal} onSave={handleSaveStreamsBulk} />
     </>
   );
 };

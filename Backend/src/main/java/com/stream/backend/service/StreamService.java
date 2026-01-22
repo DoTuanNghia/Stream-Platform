@@ -13,6 +13,8 @@ public interface StreamService {
 
     Stream createStream(Stream stream, Integer userId);
 
+    List<Stream> createStreamsBulk(List<Stream> streams, Integer userId);
+
     void deleteStream(Stream stream);
 
     Stream updateStream(Integer streamId, Stream stream);

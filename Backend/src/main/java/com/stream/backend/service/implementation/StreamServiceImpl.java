@@ -1,5 +1,6 @@
 package com.stream.backend.service.implementation;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -101,6 +102,47 @@ public class StreamServiceImpl implements StreamService {
         }
 
         return saved;
+    }
+
+    @Override
+    @Transactional
+    public List<Stream> createStreamsBulk(List<Stream> streams, Integer userId) {
+        if (streams == null || streams.isEmpty()) {
+            return List.of();
+        }
+
+        Member owner = memberRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Stream> toSave = new ArrayList<>();
+        for (Stream s : streams) {
+            if (s == null)
+                continue;
+
+            String name = s.getName();
+            String key = s.getKeyStream();
+            if (name == null || name.isBlank())
+                continue;
+            if (key == null || key.isBlank())
+                continue;
+
+            Stream st = new Stream();
+            st.setOwner(owner);
+            st.setName(name.trim());
+            st.setKeyStream(key.trim());
+            // các field khác để null (video/timeStart/duration...)
+            st.setVideoList(null);
+            st.setTimeStart(null);
+            st.setDuration(null);
+
+            toSave.add(st);
+        }
+
+        if (toSave.isEmpty()) {
+            return List.of();
+        }
+
+        return streamRepository.saveAll(toSave);
     }
 
     @Override

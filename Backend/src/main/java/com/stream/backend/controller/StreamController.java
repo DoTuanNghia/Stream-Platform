@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.stream.backend.entity.Stream;
 import com.stream.backend.service.StreamService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,12 @@ public class StreamController {
 
     public StreamController(StreamService streamService) {
         this.streamService = streamService;
+    }
+
+    public static record BulkCreateItem(String name, String keyStream) {
+    }
+
+    public static record BulkCreateRequest(List<BulkCreateItem> items) {
     }
 
     private Integer resolveUserId(Integer userIdParam, HttpServletRequest request) {
@@ -89,6 +97,40 @@ public class StreamController {
         }
 
         var saved = streamService.createStream(stream, uid);
+        return ResponseEntity.status(201).body(saved);
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<Object> createStreamsBulk(
+            @RequestParam(required = false) Integer userId,
+            @RequestBody BulkCreateRequest body,
+            HttpServletRequest request) {
+
+        Integer uid = resolveUserId(userId, request);
+        if (uid == null) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("message", "Missing userId (query param) or X-USER-ID header");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        List<BulkCreateItem> items = (body == null) ? null : body.items();
+        if (items == null || items.isEmpty()) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("message", "items is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        List<Stream> streams = new ArrayList<>();
+        for (BulkCreateItem it : items) {
+            if (it == null)
+                continue;
+            Stream s = new Stream();
+            s.setName(it.name());
+            s.setKeyStream(it.keyStream());
+            streams.add(s);
+        }
+
+        var saved = streamService.createStreamsBulk(streams, uid);
         return ResponseEntity.status(201).body(saved);
     }
 
