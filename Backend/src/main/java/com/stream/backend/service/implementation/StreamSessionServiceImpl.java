@@ -22,7 +22,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.io.File;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class StreamSessionServiceImpl implements StreamSessionService {
 
@@ -290,5 +294,75 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     public List<StreamSession> getAllStreamSessionsList(Integer userId, String sort) {
         Sort sortObj = parseSort(sort);
         return streamSessionRepository.findActiveOrScheduledByUserIdList(userId, sortObj);
+    }
+
+    @Override
+    @Transactional
+    public void deleteVideoAndResetStream(StreamSession session) {
+        if (session == null) {
+            log.warn("[DELETE-VIDEO] Session is null");
+            return;
+        }
+
+        Stream stream = session.getStream();
+        if (stream == null) {
+            log.warn("[DELETE-VIDEO] Stream is null for sessionId={}", session.getId());
+            return;
+        }
+
+        String videoList = stream.getVideoList();
+        if (videoList == null || videoList.isBlank()) {
+            log.info("[DELETE-VIDEO] No video path for streamId={}, sessionId={}", stream.getId(), session.getId());
+        } else {
+            // Xóa file video dựa vào đường dẫn
+            String[] videoPaths = videoList.split("\\r?\\n");
+            for (String videoPath : videoPaths) {
+                videoPath = videoPath.trim();
+                if (videoPath.isEmpty()) continue;
+
+                // Chỉ xóa file local (không phải URL)
+                if (isLocalFile(videoPath)) {
+                    try {
+                        File videoFile = new File(videoPath);
+                        if (videoFile.exists()) {
+                            boolean deleted = videoFile.delete();
+                            if (deleted) {
+                                log.info("[DELETE-VIDEO] Deleted video file: {}", videoPath);
+                            } else {
+                                log.warn("[DELETE-VIDEO] Failed to delete video file: {}", videoPath);
+                            }
+                        } else {
+                            log.info("[DELETE-VIDEO] Video file not found (may already deleted): {}", videoPath);
+                        }
+                    } catch (Exception e) {
+                        log.error("[DELETE-VIDEO] Error deleting video file: {}", videoPath, e);
+                    }
+                } else {
+                    log.info("[DELETE-VIDEO] Skipping URL (not local file): {}", videoPath);
+                }
+            }
+        }
+
+        // Xóa videoList và timeStart trong Stream để stream trở về trạng thái NONE hoàn toàn
+        // User có thể lên lịch scheduled lại từ đầu
+        stream.setVideoList(null);
+        stream.setTimeStart(null);
+        streamRepository.save(stream);
+
+        // Xóa StreamSession để stream trở về trạng thái NONE
+        streamSessionRepository.delete(session);
+
+        log.info("[DELETE-VIDEO] Reset stream to NONE state: streamId={}, sessionId={}", stream.getId(), session.getId());
+    }
+
+    private boolean isLocalFile(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        // Kiểm tra nếu là đường dẫn Windows (C:\...) hoặc Unix (/...)
+        // và không phải là URL (http://, https://)
+        return !path.startsWith("http://") 
+            && !path.startsWith("https://")
+            && (path.matches("^[a-zA-Z]:\\\\.*") || path.startsWith("/"));
     }
 }

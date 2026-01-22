@@ -32,6 +32,55 @@ public class StreamScheduler {
         autoStopExpiredSessions(now);
     }
 
+    /**
+     * Tự động xóa file video sau 24h khi stream ở trạng thái STOPPED
+     * Chạy mỗi 1 giờ để kiểm tra
+     */
+    @Scheduled(fixedDelay = 3_600_000) // 1 giờ = 3600000ms
+    public void autoDeleteStoppedVideos() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threshold = now.minusHours(24); // 24 giờ trước
+
+        int page = 0;
+        int size = 200;
+
+        Page<StreamSession> p;
+        do {
+            p = streamSessionRepository.findByStatusIgnoreCase(
+                    "STOPPED",
+                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"))
+            );
+
+            for (StreamSession session : p.getContent()) {
+                // Kiểm tra nếu stoppedAt đã hơn 24h
+                LocalDateTime stoppedAt = session.getStoppedAt();
+                if (stoppedAt == null) {
+                    continue; // Bỏ qua nếu không có stoppedAt
+                }
+
+                if (stoppedAt.isAfter(threshold)) {
+                    continue; // Chưa đủ 24h, bỏ qua
+                }
+
+                Stream stream = session.getStream();
+                if (stream == null) {
+                    continue;
+                }
+
+                log.info("[AUTO-DELETE-VIDEO] sessionId={}, streamId={}, stoppedAt={}", 
+                        session.getId(), stream.getId(), stoppedAt);
+
+                try {
+                    streamSessionService.deleteVideoAndResetStream(session);
+                } catch (Exception e) {
+                    log.error("[AUTO-DELETE-VIDEO] Failed sessionId=" + session.getId(), e);
+                }
+            }
+
+            page++;
+        } while (!p.isLast());
+    }
+
     private void autoStartScheduledSessions(LocalDateTime now) {
         int page = 0;
         int size = 200;
