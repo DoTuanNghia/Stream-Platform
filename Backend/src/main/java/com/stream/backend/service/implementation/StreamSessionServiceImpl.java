@@ -363,23 +363,22 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         Integer streamId = managedStream.getId();
         Integer sessionId = managedSession.getId();
         
-        // Xóa StreamSession bằng ID để tránh lỗi cascade khi save Stream
-        streamSessionRepository.deleteById(sessionId);
+        // QUAN TRỌNG: Set streamSession thành null TRƯỚC KHI xóa để tránh lỗi TransientObjectException
+        // Vì Stream có @OneToOne(mappedBy) với StreamSession, cần xóa reference trước
+        managedStream.setStreamSession(null);
+        streamRepository.save(managedStream);
+        streamRepository.flush(); // Flush để đảm bảo reference được xóa trong DB
         
-        // Reload Stream sau khi xóa StreamSession để đảm bảo không còn reference
-        Stream refreshedStream = streamRepository.findById(streamId)
-                .orElse(null);
-        if (refreshedStream == null) {
-            log.warn("[DELETE-VIDEO] Stream not found after session deletion: streamId={}", streamId);
-            return;
-        }
+        // Xóa StreamSession bằng ID sau khi đã xóa reference
+        streamSessionRepository.deleteById(sessionId);
         
         // Xóa videoList, timeStart và duration trong Stream để stream trở về trạng thái NONE hoàn toàn
         // User có thể lên lịch scheduled lại từ đầu
-        refreshedStream.setVideoList(null);
-        refreshedStream.setTimeStart(null);
-        refreshedStream.setDuration(null);
-        streamRepository.save(refreshedStream);
+        managedStream.setVideoList(null);
+        managedStream.setTimeStart(null);
+        managedStream.setDuration(null);
+        
+        streamRepository.save(managedStream);
 
         log.info("[DELETE-VIDEO] Reset stream to NONE state: streamId={}, sessionId={}", streamId, sessionId);
     }
