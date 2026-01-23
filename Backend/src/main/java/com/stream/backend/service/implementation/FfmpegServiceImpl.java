@@ -111,10 +111,20 @@ public class FfmpegServiceImpl implements FfmpegService {
             Process process = pb.start();
             processMap.put(streamKey, process);
 
-            // kiểm tra start thật sự ok (chết sớm / log lỗi)
-            assertProcessStartedOk(streamKey, process, 2000);
+            // Đợi một chút để process khởi động hoàn toàn trên Windows
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
 
-            new Thread(() -> readProgress(streamKey, process)).start();
+            // Bắt đầu đọc progress trong daemon thread (sẽ detect lỗi trong readProgress)
+            Thread progressThread = new Thread(() -> readProgress(streamKey, process), "FFmpeg-Progress-" + streamKey);
+            progressThread.setDaemon(true); // Daemon thread để không giữ JVM
+            progressThread.start();
+
+            // Kiểm tra process còn sống sau khi start (không đọc stream để tránh conflict)
+            assertProcessStartedOk(streamKey, process, 2000);
 
             System.out.println("[FFMPEG] Started COPY stream: " + streamKey);
             return true;
@@ -215,10 +225,20 @@ public class FfmpegServiceImpl implements FfmpegService {
             Process process = pb.start();
             processMap.put(streamKey, process);
 
-            // encode start fail -> throw
-            assertProcessStartedOk(streamKey, process, 2000);
+            // Đợi một chút để process khởi động hoàn toàn trên Windows
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
 
-            new Thread(() -> readProgress(streamKey, process)).start();
+            // Bắt đầu đọc progress trong daemon thread (sẽ detect lỗi trong readProgress)
+            Thread progressThread = new Thread(() -> readProgress(streamKey, process), "FFmpeg-Progress-" + streamKey);
+            progressThread.setDaemon(true); // Daemon thread để không giữ JVM
+            progressThread.start();
+
+            // Kiểm tra process còn sống sau khi start (không đọc stream để tránh conflict)
+            assertProcessStartedOk(streamKey, process, 2000);
 
             System.out.println("[FFMPEG] Started ENCODE stream: " + streamKey);
 
@@ -233,52 +253,146 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     private void readProgress(String streamKey, Process process) {
         FfmpegStat stat = new FfmpegStat();
+        long startTime = System.currentTimeMillis();
+        boolean earlyErrorDetected = false;
+        BufferedReader br = null;
+        InputStream is = null;
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try {
+            // Lấy InputStream từ process
+            is = process.getInputStream();
+            if (is == null) {
+                System.err.println("[FFMPEG] Cannot get input stream for " + streamKey);
+                return;
+            }
+
+            // Sử dụng UTF-8 encoding để đảm bảo đọc đúng trên Windows
+            // Sử dụng buffer size lớn hơn để tránh block trên Windows
+            br = new BufferedReader(
+                new InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8),
+                8192
+            );
+
             String line;
+            long lastReadTime = System.currentTimeMillis();
 
-            while ((line = br.readLine()) != null) {
-                System.out.println("[FFMPEG] " + line);
-
-                // Parse STATS line
-                if (line.contains("frame=") && line.contains("fps=")) {
-                    parseStatsLineInto(stat, line);
-                    stat.updatedAt = System.currentTimeMillis();
-                    statMap.put(streamKey, cloneStat(stat));
-                    continue;
-                }
-
-                // Parse PROGRESS: key=value
-                if (!line.contains("=")) continue;
-
-                String[] kv = line.split("=", 2);
-                if (kv.length != 2) continue;
-
-                String key = kv[0].trim();
-                String val = kv[1].trim();
-
-                switch (key) {
-                    case "frame" -> stat.frame = parseLong(val);
-                    case "stream_0_0_fps" -> stat.fps = parseDouble(val);
-                    case "stream_0_0_q" -> stat.q = parseDouble(val);
-                    case "bitrate" -> stat.bitrate = val;
-                    case "speed" -> stat.speed = val;
-                    case "out_time" -> stat.time = val;
-                    case "total_size" -> stat.size = humanBytes(parseLong(val));
-                    case "out_time_us" -> stat.outTimeMs = parseLong(val) / 1000L; // us -> ms
-                    case "out_time_ms" -> stat.outTimeMs = parseLong(val) / 1000L; // treat as us -> ms
-                    case "progress" -> {
-                        if ((stat.fps == null || stat.fps == 0.0)
-                                && stat.frame != null && stat.outTimeMs != null && stat.outTimeMs > 0) {
-                            stat.fps = stat.frame / (stat.outTimeMs / 1000.0);
+            // Đọc stream cho đến khi process kết thúc hoặc stream đóng
+            while (process.isAlive() || br.ready()) {
+                try {
+                    // Kiểm tra nếu có dữ liệu sẵn (non-blocking check)
+                    if (br.ready()) {
+                        line = br.readLine();
+                        if (line == null) {
+                            // Stream đã đóng
+                            break;
                         }
+                        lastReadTime = System.currentTimeMillis();
+                    } else {
+                        // Nếu không có dữ liệu, đợi một chút rồi kiểm tra lại
+                        // Tránh busy-wait nhưng vẫn responsive
+                        Thread.sleep(50);
+                        
+                        // Nếu process đã chết và không có dữ liệu trong 1 giây, thoát
+                        if (!process.isAlive() && (System.currentTimeMillis() - lastReadTime) > 1000) {
+                            break;
+                        }
+                        continue;
+                    }
+
+                    System.out.println("[FFMPEG] " + line);
+
+                    // Detect lỗi sớm trong vài giây đầu
+                    if (!earlyErrorDetected && (System.currentTimeMillis() - startTime) < 3000) {
+                        String low = line.toLowerCase();
+                        if (low.contains("error opening output")
+                                || low.contains("error opening output files")
+                                || low.contains("no such file or directory")
+                                || low.contains("i/o error")
+                                || low.contains("connection refused")
+                                || low.contains("failed to resolve hostname")
+                                || low.contains("server returned 4")
+                                || low.contains("server returned 5")
+                                || low.contains("cannot find")
+                                || low.contains("invalid argument")) {
+                            earlyErrorDetected = true;
+                            System.err.println("[FFMPEG] Early error detected for " + streamKey + ": " + line);
+                        }
+                    }
+
+                    // Parse STATS line
+                    if (line.contains("frame=") && line.contains("fps=")) {
+                        parseStatsLineInto(stat, line);
                         stat.updatedAt = System.currentTimeMillis();
                         statMap.put(streamKey, cloneStat(stat));
+                        continue;
                     }
+
+                    // Parse PROGRESS: key=value
+                    if (!line.contains("=")) continue;
+
+                    String[] kv = line.split("=", 2);
+                    if (kv.length != 2) continue;
+
+                    String key = kv[0].trim();
+                    String val = kv[1].trim();
+
+                    switch (key) {
+                        case "frame" -> stat.frame = parseLong(val);
+                        case "stream_0_0_fps" -> stat.fps = parseDouble(val);
+                        case "stream_0_0_q" -> stat.q = parseDouble(val);
+                        case "bitrate" -> stat.bitrate = val;
+                        case "speed" -> stat.speed = val;
+                        case "out_time" -> stat.time = val;
+                        case "total_size" -> stat.size = humanBytes(parseLong(val));
+                        case "out_time_us" -> stat.outTimeMs = parseLong(val) / 1000L; // us -> ms
+                        case "out_time_ms" -> stat.outTimeMs = parseLong(val) / 1000L; // treat as us -> ms
+                        case "progress" -> {
+                            if ((stat.fps == null || stat.fps == 0.0)
+                                    && stat.frame != null && stat.outTimeMs != null && stat.outTimeMs > 0) {
+                                stat.fps = stat.frame / (stat.outTimeMs / 1000.0);
+                            }
+                            stat.updatedAt = System.currentTimeMillis();
+                            statMap.put(streamKey, cloneStat(stat));
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
-        } catch (IOException ignored) {
+
+            // Đọc phần còn lại nếu có (khi process đã chết nhưng stream vẫn còn dữ liệu)
+            if (br.ready()) {
+                while ((line = br.readLine()) != null) {
+                    System.out.println("[FFMPEG] " + line);
+                }
+            }
+
+        } catch (IOException e) {
+            // Chỉ log nếu process vẫn còn sống (có thể là lỗi thực sự)
+            if (process.isAlive()) {
+                System.err.println("[FFMPEG] IO error reading stream for " + streamKey + ": " + e.getMessage());
+            }
+        } catch (Exception e) {
+            System.err.println("[FFMPEG] Unexpected error reading stream for " + streamKey + ": " + e.getMessage());
+            e.printStackTrace();
         } finally {
+            // Đóng resources một cách an toàn
+            if (br != null) {
+                try {
+                    br.close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+            // Cleanup maps
             processMap.remove(streamKey);
             statMap.remove(streamKey);
         }
@@ -360,20 +474,54 @@ public class FfmpegServiceImpl implements FfmpegService {
     public void stopStream(String streamKey) {
         if (streamKey == null || streamKey.isBlank()) return;
 
-        Process process = processMap.remove(streamKey);
+        Process process = processMap.get(streamKey); // Lấy nhưng chưa remove ngay
+        if (process == null) {
+            // Đã được remove rồi hoặc không tồn tại
+            statMap.remove(streamKey);
+            return;
+        }
+
+        // Remove khỏi map để readProgress biết đã stop
+        processMap.remove(streamKey);
         statMap.remove(streamKey);
 
-        if (process == null) return;
+        if (!process.isAlive()) {
+            // Process đã chết rồi
+            return;
+        }
 
         try {
+            // Gửi lệnh 'q' để FFmpeg dừng gracefully
             OutputStream os = process.getOutputStream();
-            os.write("q\n".getBytes());
-            os.flush();
-
-            if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+            if (os != null) {
+                try {
+                    os.write("q\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    os.flush();
+                    os.close(); // Đóng stream sau khi gửi lệnh
+                } catch (IOException e) {
+                    // Nếu không thể gửi lệnh, sẽ force kill ở dưới
+                }
             }
+
+            // Đợi process kết thúc trong 5 giây
+            boolean terminated = process.waitFor(5, TimeUnit.SECONDS);
+            if (!terminated) {
+                // Nếu không kết thúc, force kill
+                System.out.println("[FFMPEG] Process not terminated gracefully, forcing kill for " + streamKey);
+                process.destroyForcibly();
+                // Đợi thêm một chút để đảm bảo process đã chết
+                try {
+                    process.waitFor(2, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            process.destroyForcibly();
         } catch (Exception e) {
+            // Bất kỳ lỗi nào khác, force kill
+            System.err.println("[FFMPEG] Error stopping stream " + streamKey + ": " + e.getMessage());
             process.destroyForcibly();
         }
 
@@ -404,55 +552,58 @@ public class FfmpegServiceImpl implements FfmpegService {
     }
 
     /**
-     * Quan trọng: Bắt trường hợp ffmpeg chết ngay hoặc log báo lỗi trong vài giây đầu.
-     * Vì redirectErrorStream(true) nên đọc từ process.getInputStream().
-     *
-     * NOTE: Hàm này đọc một phần output đầu, sau đó "đẩy" phần còn lại cho readProgress bằng cách
-     * KHÔNG tạo reader thứ 2 song song. Ở đây ta chỉ dùng để detect fail sớm.
-     * Thực tế, reader trong hàm này sẽ "ăn" vài dòng đầu, readProgress sẽ đọc tiếp phần còn lại (OK).
+     * Kiểm tra process còn sống sau khi start.
+     * KHÔNG đọc từ stream để tránh conflict với readProgress trên Windows.
+     * readProgress sẽ tự detect lỗi từ output của FFmpeg.
      */
     private void assertProcessStartedOk(String streamKey, Process process, long waitMs) {
         long end = System.currentTimeMillis() + waitMs;
-        StringBuilder firstLines = new StringBuilder();
+        long checkInterval = 50; // ms
 
         try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
+            // Chỉ kiểm tra process còn sống, không đọc stream
             while (System.currentTimeMillis() < end) {
-                if (!process.isAlive()) break;
-
-                while (br.ready()) {
-                    String line = br.readLine();
-                    if (line == null) break;
-
-                    System.out.println("[FFMPEG] " + line);
-                    firstLines.append(line).append("\n");
-
-                    String low = line.toLowerCase();
-
-                    if (low.contains("error opening output")
-                            || low.contains("error opening output files")
-                            || low.contains("no such file or directory")
-                            || low.contains("i/o error")
-                            || low.contains("connection refused")
-                            || low.contains("failed to resolve hostname")
-                            || low.contains("server returned 4")
-                            || low.contains("server returned 5")) {
-                        throw new RuntimeException("FFMPEG_START_FAILED: " + line);
+                if (!process.isAlive()) {
+                    // Process đã chết sớm - lấy exit code nếu có thể
+                    try {
+                        int code = process.exitValue();
+                        throw new RuntimeException("FFMPEG_START_FAILED: Process exited early with code=" + code);
+                    } catch (IllegalThreadStateException e) {
+                        // Process chưa kết thúc hoàn toàn, nhưng isAlive() trả về false
+                        // Có thể là race condition, đợi thêm một chút
+                        Thread.sleep(100);
+                        if (!process.isAlive()) {
+                            int code = process.exitValue();
+                            throw new RuntimeException("FFMPEG_START_FAILED: Process exited early with code=" + code);
+                        }
                     }
                 }
-
-                Thread.sleep(50);
+                Thread.sleep(checkInterval);
             }
 
+            // Kiểm tra lại một lần nữa sau khi hết thời gian chờ
             if (!process.isAlive()) {
-                int code = process.exitValue();
-                String msg = firstLines.length() > 0 ? firstLines.toString().trim() : ("FFMPEG_EXIT_EARLY code=" + code);
-                throw new RuntimeException("FFMPEG_START_FAILED: " + msg);
+                try {
+                    int code = process.exitValue();
+                    throw new RuntimeException("FFMPEG_START_FAILED: Process exited with code=" + code);
+                } catch (IllegalThreadStateException e) {
+                    // Process vẫn đang chạy (race condition), coi như OK
+                }
             }
 
         } catch (RuntimeException re) {
             throw re;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            // Nếu bị interrupt, kiểm tra process một lần nữa
+            if (!process.isAlive()) {
+                try {
+                    int code = process.exitValue();
+                    throw new RuntimeException("FFMPEG_START_FAILED: Process exited with code=" + code);
+                } catch (IllegalThreadStateException ignored) {
+                    // Process vẫn đang chạy, coi như OK
+                }
+            }
         } catch (Exception e) {
             throw new RuntimeException("FFMPEG_START_CHECK_ERROR: " + e.getMessage(), e);
         }

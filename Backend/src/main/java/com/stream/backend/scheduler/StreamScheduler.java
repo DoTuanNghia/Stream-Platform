@@ -26,7 +26,7 @@ public class StreamScheduler {
     private final YouTubeLiveService youTubeLiveService;
 
     @Scheduled(fixedDelay = 10_000)
-    public void autoStartAndStop() { // ✅ bỏ @Transactional để tránh rollback-only
+    public void autoStartAndStop() { 
         LocalDateTime now = LocalDateTime.now();
         autoStartScheduledSessions(now);
         autoStopExpiredSessions(now);
@@ -36,10 +36,12 @@ public class StreamScheduler {
      * Tự động xóa file video sau 24h khi stream ở trạng thái STOPPED
      * Chạy mỗi 1 giờ để kiểm tra
      */
-    @Scheduled(fixedDelay = 3_600_000) // 1 giờ = 3600000ms
+    // @Scheduled(fixedDelay = 3_600_000) // 1 giờ = 3600000ms
+    @Scheduled(fixedDelay = 300_000)
     public void autoDeleteStoppedVideos() {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threshold = now.minusHours(24); // 24 giờ trước
+        // LocalDateTime threshold = now.minusHours(1); // 24 giờ trước
+        LocalDateTime threshold = now.minusMinutes(5);
 
         int page = 0;
         int size = 200;

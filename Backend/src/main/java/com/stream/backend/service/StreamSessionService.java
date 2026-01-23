@@ -27,9 +27,5 @@ public interface StreamSessionService {
 
     List<StreamSession> getAllStreamSessionsList(Integer userId, String sort);
 
-    /**
-     * Xóa file video và reset stream về trạng thái ban đầu (NONE)
-     * Chỉ xóa file video, giữ nguyên stream trên web để có thể lên lịch lại
-     */
     void deleteVideoAndResetStream(StreamSession session);
 }
