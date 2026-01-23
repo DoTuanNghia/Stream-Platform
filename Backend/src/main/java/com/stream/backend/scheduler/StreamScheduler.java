@@ -40,7 +40,7 @@ public class StreamScheduler {
     @Scheduled(fixedDelay = 300_000)
     public void autoDeleteStoppedVideos() {
         LocalDateTime now = LocalDateTime.now();
-        // LocalDateTime threshold = now.minusHours(1); // 24 giờ trước
+        // LocalDateTime threshold = now.minusHours(24); // 24 giờ trước
         LocalDateTime threshold = now.minusMinutes(5);
 
         int page = 0;
