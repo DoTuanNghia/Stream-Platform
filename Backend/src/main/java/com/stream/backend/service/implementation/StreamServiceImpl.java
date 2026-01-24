@@ -1,5 +1,6 @@
 package com.stream.backend.service.implementation;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +21,9 @@ import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamService;
 import com.stream.backend.youtube.YouTubeLiveService;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class StreamServiceImpl implements StreamService {
 
@@ -185,8 +189,19 @@ public class StreamServiceImpl implements StreamService {
             existing.setName(stream.getName());
         if (stream.getKeyStream() != null)
             existing.setKeyStream(stream.getKeyStream());
-        if (stream.getVideoList() != null)
-            existing.setVideoList(stream.getVideoList());
+
+        // ✅ XÓA VIDEO CŨ KHI UPDATE VIDEOLIST MỚI
+        if (stream.getVideoList() != null) {
+            String oldVideoList = existing.getVideoList();
+            String newVideoList = stream.getVideoList();
+
+            // Nếu videoList thay đổi và video cũ là file local → xóa video cũ ngay lập tức
+            if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
+                deleteOldVideoFiles(oldVideoList, newVideoList);
+            }
+
+            existing.setVideoList(newVideoList);
+        }
 
         // ✅ cho phép update cả null (khi FE gửi null)
         existing.setTimeStart(stream.getTimeStart());
@@ -220,6 +235,64 @@ public class StreamServiceImpl implements StreamService {
         }
 
         return saved;
+    }
+
+    /**
+     * Xóa file video cũ khi cập nhật videoList mới
+     * Chỉ xóa file local, không xóa URL
+     */
+    private void deleteOldVideoFiles(String oldVideoList, String newVideoList) {
+        if (oldVideoList == null || oldVideoList.isBlank()) {
+            return;
+        }
+
+        String[] oldPaths = oldVideoList.split("\\r?\\n");
+        for (String videoPath : oldPaths) {
+            videoPath = videoPath.trim();
+            if (videoPath.isEmpty())
+                continue;
+
+            // Kiểm tra nếu video cũ cũng có trong video mới → không xóa
+            if (newVideoList != null && newVideoList.contains(videoPath)) {
+                log.info("[UPDATE-STREAM] Skipping delete (same video): {}", videoPath);
+                continue;
+            }
+
+            // Chỉ xóa file local (không phải URL)
+            if (isLocalFile(videoPath)) {
+                try {
+                    File videoFile = new File(videoPath);
+                    if (videoFile.exists()) {
+                        boolean deleted = videoFile.delete();
+                        if (deleted) {
+                            log.info("[UPDATE-STREAM] Deleted old video file: {}", videoPath);
+                        } else {
+                            log.warn("[UPDATE-STREAM] Failed to delete old video file: {}", videoPath);
+                        }
+                    } else {
+                        log.info("[UPDATE-STREAM] Old video file not found (may already deleted): {}", videoPath);
+                    }
+                } catch (Exception e) {
+                    log.error("[UPDATE-STREAM] Error deleting old video file: {}", videoPath, e);
+                }
+            } else {
+                log.info("[UPDATE-STREAM] Skipping URL (not local file): {}", videoPath);
+            }
+        }
+    }
+
+    /**
+     * Kiểm tra xem đường dẫn có phải là file local không
+     */
+    private boolean isLocalFile(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        // Kiểm tra Windows path (C:\...) hoặc Unix path (/...)
+        // Không phải URL (http://, https://)
+        return !path.startsWith("http://")
+                && !path.startsWith("https://")
+                && (path.matches("^[a-zA-Z]:\\\\.*") || path.startsWith("/"));
     }
 
     private Sort parseSort(String sort) {

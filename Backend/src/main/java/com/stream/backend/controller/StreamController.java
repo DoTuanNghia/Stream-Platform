@@ -96,7 +96,16 @@ public class StreamController {
             return ResponseEntity.badRequest().body(err);
         }
 
+        // Debug logging
+        System.out.println("=== DEBUG createStream ===");
+        System.out.println("Received stream.name: " + stream.getName());
+        System.out.println("Received stream.videoList: " + stream.getVideoList());
+        System.out.println("Received stream.keyStream: " + stream.getKeyStream());
+
         var saved = streamService.createStream(stream, uid);
+
+        System.out.println("Saved stream.videoList: " + saved.getVideoList());
+
         return ResponseEntity.status(201).body(saved);
     }
 
@@ -150,7 +159,17 @@ public class StreamController {
             @PathVariable("streamId") Integer streamId,
             @RequestBody Stream stream) {
 
+        // Debug logging
+        System.out.println("=== DEBUG updateStream ===");
+        System.out.println("Stream ID: " + streamId);
+        System.out.println("Received stream.name: " + stream.getName());
+        System.out.println("Received stream.videoList: " + stream.getVideoList());
+        System.out.println("Received stream.keyStream: " + stream.getKeyStream());
+
         Stream updated = streamService.updateStream(streamId, stream);
+
+        System.out.println("Updated stream.videoList: " + updated.getVideoList());
+
         return ResponseEntity.ok(updated);
     }
 

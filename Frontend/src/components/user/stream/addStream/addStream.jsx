@@ -1,6 +1,10 @@
 // src/components/stream/addStream/addStream.jsx
 import React, { useEffect, useRef, useState } from "react";
 import "./addStream.scss";
+import {
+  isGoogleDriveUrl,
+  processGoogleDriveDownload,
+} from "../../../../utils/googleDriveDownloader.js";
 
 const emptyForm = {
   note: "",
@@ -14,8 +18,9 @@ const emptyForm = {
 };
 
 const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
-
   const [form, setForm] = useState(emptyForm);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState("");
 
   const overlayMouseDownOnBackdropRef = useRef(false);
 
@@ -41,17 +46,18 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     } else {
       setForm(emptyForm);
     }
+    // Reset download status khi mở/đóng modal
+    setDownloadStatus("");
+    setIsDownloading(false);
   }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
   const handleOverlayMouseDown = (e) => {
-    // chỉ đánh dấu TRUE nếu mousedown trực tiếp trên backdrop (overlay), không phải con bên trong
     overlayMouseDownOnBackdropRef.current = e.target === e.currentTarget;
   };
 
   const handleOverlayMouseUp = (e) => {
-    // chỉ đóng nếu: mousedown trên backdrop và mouseup cũng trên backdrop
     const mouseUpOnBackdrop = e.target === e.currentTarget;
     if (overlayMouseDownOnBackdropRef.current && mouseUpOnBackdrop) {
       onClose();
@@ -66,29 +72,87 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
   const VIDEO_BASE_DIR = "D:\\videos\\";
 
-  const handleSubmit = (e) => {
+
+  /**
+   * Xử lý submit form - có tích hợp auto download từ Google Drive
+   * Flow mới: Download TRƯỚC, sau đó mới tạo stream với video path thực
+   */
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.keyLive) return;
 
-    const rawName = (form.videoList || "").trim(); // user nhập: name hoặc name.mp4
+    const rawInput = (form.videoList || "").trim();
 
-    // nếu rỗng thì thôi
-    if (!rawName) {
+    // Nếu rỗng thì lưu như bình thường
+    if (!rawInput) {
       onSave({ ...form, videoList: "" });
       return;
     }
 
-    // nếu user đã nhập full path rồi thì giữ nguyên (phòng khi bạn muốn)
-    const isFullPath = /^[a-zA-Z]:\\/.test(rawName);
-    if (isFullPath) {
-      onSave({ ...form, videoList: rawName });
+    // Kiểm tra có phải là Google Drive URL không
+    if (isGoogleDriveUrl(rawInput)) {
+      // ---- FLOW: Google Drive URL ----
+      // Download TRƯỚC, sau đó mới tạo/cập nhật stream với video path thực
+      setIsDownloading(true);
+      setDownloadStatus("Đang chuẩn bị download...");
+
+      try {
+        // 1. Bắt đầu download từ Google Drive TRƯỚC
+        setDownloadStatus("Đang download video từ Google Drive...");
+        const downloadResult = await processGoogleDriveDownload(rawInput);
+
+        if (downloadResult.success) {
+          // 2. Download thành công - tạo/cập nhật stream với video path thực
+          const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
+          setDownloadStatus(`Download thành công: ${downloadResult.fileName}. Đang lưu luồng...`);
+
+          // 3. Cập nhật form để hiển thị video path trong input
+          setForm((prev) => ({ ...prev, videoList: videoPath }));
+
+          // 4. Tạo formData với video path thực (QUAN TRỌNG: dùng videoPath trực tiếp, không phải form.videoList)
+          const formData = {
+            note: form.note,
+            keyLive: form.keyLive,
+            videoList: videoPath, // <-- Video path thực, không phải URL Drive
+            startTime: form.startTime,
+            startDate: form.startDate,
+            duration: form.duration,
+          };
+
+          console.log("Saving stream with formData:", formData); // Debug log
+
+          // 5. Await onSave để đảm bảo API call hoàn thành
+          await onSave(formData);
+
+          const actionText = initialData ? "cập nhật" : "tạo";
+          alert(`Download thành công!\nFile: ${downloadResult.fileName}\nLuồng đã được ${actionText} với video: ${videoPath}`);
+        } else {
+          setDownloadStatus(`Lỗi download: ${downloadResult.message}`);
+          alert(`Download thất bại: ${downloadResult.message}\nLuồng không được lưu.`);
+        }
+      } catch (error) {
+        console.error("Error during Google Drive download:", error);
+        setDownloadStatus(`Lỗi: ${error.message}`);
+        alert(`Có lỗi xảy ra: ${error.message}`);
+      } finally {
+        setIsDownloading(false);
+      }
+
       return;
     }
 
-    // thêm .mp4 nếu thiếu
-    const filename = rawName.toLowerCase().endsWith(".mp4") ? rawName : `${rawName}.mp4`;
+    // ---- FLOW: Tên video thông thường (không phải Google Drive) ----
+    // Nếu đã là full path thì giữ nguyên
+    const isFullPath = /^[a-zA-Z]:\\/.test(rawInput);
+    if (isFullPath) {
+      onSave({ ...form, videoList: rawInput });
+      return;
+    }
 
-    // ghép thành D:\videos\filename
+    // Thêm .mp4 nếu thiếu
+    const filename = rawInput.toLowerCase().endsWith(".mp4") ? rawInput : `${rawInput}.mp4`;
+
+    // Ghép thành D:\videos\filename
     const fullPath = `${VIDEO_BASE_DIR}${filename}`;
 
     onSave({
@@ -96,7 +160,6 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       videoList: fullPath,
     });
   };
-
 
   return (
     <div
@@ -110,7 +173,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
             {initialData ? "Sửa Stream" : "Tạo Stream"}
           </span>
 
-          <button className="modal__close" onClick={onClose}>
+          <button className="modal__close" onClick={onClose} disabled={isDownloading}>
             ×
           </button>
         </div>
@@ -124,6 +187,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.note}
               onChange={handleChange}
               placeholder="Nhập tên luồng"
+              disabled={isDownloading}
             />
           </div>
 
@@ -135,37 +199,72 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.keyLive}
               onChange={handleChange}
               placeholder="Nhập key live"
+              disabled={isDownloading}
             />
           </div>
 
           <div className="modal__field">
-            <label>Tên video</label>
+            <label>Tên video / Link Google Drive</label>
             <input
               type="text"
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder='Link/Tên video (vd: "video1.mp4" hoặc "D:\videos\video1.mp4")'
+              placeholder='Tên video (vd: "video1.mp4") hoặc URL Google Drive'
+              disabled={isDownloading}
             />
+            {/* <small className="modal__hint">
+              💡 Nếu nhập link Google Drive, video sẽ tự động được tải về server với tên tự động.
+            </small> */}
           </div>
-
 
           <div className="modal__field">
             <label>Thời gian bắt đầu</label>
             <div className="modal__row-inline">
-              <input type="time" name="startTime" value={form.startTime} onChange={handleChange} />
-              <input type="date" name="startDate" value={form.startDate} onChange={handleChange} />
+              <input
+                type="time"
+                name="startTime"
+                value={form.startTime}
+                onChange={handleChange}
+                disabled={isDownloading}
+              />
+              <input
+                type="date"
+                name="startDate"
+                value={form.startDate}
+                onChange={handleChange}
+                disabled={isDownloading}
+              />
             </div>
           </div>
 
           <div className="modal__field">
             <label>Thời lượng sẽ live</label>
-            <input type="number" name="duration" value={form.duration} onChange={handleChange} min={-1} />
+            <input
+              type="number"
+              name="duration"
+              value={form.duration}
+              onChange={handleChange}
+              min={-1}
+              disabled={isDownloading}
+            />
           </div>
 
+          {/* Hiển thị trạng thái download */}
+          {downloadStatus && (
+            <div className={`modal__download-status ${isDownloading ? "modal__download-status--loading" : ""}`}>
+              {isDownloading && <span className="modal__spinner"></span>}
+              {downloadStatus}
+            </div>
+          )}
+
           <div className="modal__footer">
-            <button type="submit" className="btn btn--primary modal__submit">
-              Lưu
+            <button
+              type="submit"
+              className="btn btn--primary modal__submit"
+              disabled={isDownloading}
+            >
+              {isDownloading ? "Đang xử lý..." : "Lưu"}
             </button>
           </div>
         </form>

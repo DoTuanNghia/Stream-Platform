@@ -125,15 +125,32 @@ const Stream = () => {
             : null,
       };
 
-      if (editingStream) await axiosClient.put(`/streams/${editingStream.id}`, payload);
-      else await axiosClient.post(`/streams`, payload, { params: { userId } });
+      console.log("=== DEBUG handleSaveStream ===");
+      console.log("Received form:", form);
+      console.log("Built payload:", payload);
+      console.log("videoList in payload:", payload.videoList);
+
+      let savedStream;
+      if (editingStream) {
+        console.log("Updating stream ID:", editingStream.id);
+        savedStream = await axiosClient.put(`/streams/${editingStream.id}`, payload);
+      } else {
+        console.log("Creating new stream for userId:", userId);
+        savedStream = await axiosClient.post(`/streams`, payload, { params: { userId } });
+      }
+
+      console.log("Server response:", savedStream);
 
       setIsAddOpen(false);
       setEditingStream(null);
       await fetchAll();
+
+      // Return saved stream data
+      return savedStream;
     } catch (err) {
-      console.error(err);
+      console.error("Error in handleSaveStream:", err);
       alert(editingStream ? "Sửa luồng thất bại." : "Tạo luồng thất bại.");
+      return null;
     }
   };
 
@@ -280,7 +297,7 @@ const Stream = () => {
                           <button
                             className={`btn btn--success ${blocked ? "btn--disabled" : ""}`}
                             onClick={() => {
-                              if (blocked) return; 
+                              if (blocked) return;
                               handleStreamNow(st);
                             }}
                             aria-disabled={blocked}
