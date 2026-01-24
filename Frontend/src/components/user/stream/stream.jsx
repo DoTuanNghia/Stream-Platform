@@ -1,5 +1,5 @@
 // src/components/stream/stream.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
 import AddStreamsBulk from "./addStream/addStreamsBulk.jsx";
@@ -43,7 +43,9 @@ const Stream = () => {
   const [totalElements, setTotalElements] = useState(0);
 
   const wrapperRef = useRef(null);
-  const userId = useMemo(() => getCurrentUserId(), []);
+
+  // ✅ Sử dụng useState thay vì useMemo để lấy userId mới nhất mỗi khi component mount
+  const [userId, setUserId] = useState(() => getCurrentUserId());
 
   const fetchStatusForList = async (list) => {
     const ids = list.map((s) => s?.id).filter(Boolean);
@@ -108,9 +110,19 @@ const Stream = () => {
   };
 
   useEffect(() => {
-    fetchAll();
+    // ✅ Cập nhật userId từ storage mỗi khi component mount
+    const currentId = getCurrentUserId();
+    if (currentId !== userId) {
+      setUserId(currentId);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchAll();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userId]);
 
   const handleSaveStream = async (form) => {
     try {
