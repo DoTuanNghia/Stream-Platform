@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -37,7 +38,9 @@
             font-weight: bold;
         }
 
-        input, select, button {
+        input,
+        select,
+        button {
             width: 100%;
             padding: 12px;
             border: 1px solid #ccc;
@@ -212,6 +215,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Video Download Tool</h1>
@@ -221,21 +225,20 @@
             <div class="form-group">
                 <label for="vpsIp">Current Host (auto):</label>
                 <input type="text" id="vpsIp" placeholder="auto" />
-         
+
             </div>
 
             <div class="form-group">
                 <label for="fileType">Select File Type:</label>
                 <select id="fileType" required>
-                    <option value="">-- Select --</option>
-                    <option value="youtube">YouTube</option>
-                    <option value="drive">Google Drive</option>
+                    <option value="drive" selected>Google Drive</option>
                 </select>
             </div>
 
             <div class="form-group">
                 <label for="fileIdOrUrl">Enter File ID or URL:</label>
-                <input type="text" id="fileIdOrUrl" placeholder="e.g., https://youtube.com/... or Drive File ID" required />
+                <input type="text" id="fileIdOrUrl" placeholder="Drive File ID"
+                    required />
             </div>
 
             <div class="form-group">
@@ -730,4 +733,5 @@
         }
     </script>
 </body>
+
 </html>
