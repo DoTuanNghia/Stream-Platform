@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Download Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #444;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #28a745;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Optional info type (your code uses 'info' in one place) */
+        .message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Section for Downloaded Files */
+        .downloaded-files {
+            margin-top: 40px;
+        }
+
+        .downloaded-files h2 {
+            font-size: 22px;
+            color: #444;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .downloaded-files ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .downloaded-files li {
+            background-color: #e9ecef;
+            margin-bottom: 15px;
+            padding: 20px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            position: relative;
+        }
+
+        .downloaded-files li .file-details {
+            flex: 1 1 60%;
+        }
+
+        .downloaded-files li .file-details p {
+            margin: 5px 0;
+        }
+
+        .downloaded-files li .remove-button {
+            background-color: #dc3545;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 20px;
+        }
+
+        .downloaded-files li .remove-button:hover {
+            background-color: #c82333;
+        }
+
+        .progress-bar {
+            width: 100%;
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 10px;
+            margin-top: 10px;
+        }
+
+        .progress-bar-inner {
+            height: 100%;
+            width: 0%;
+            background-color: #28a745;
+            transition: width 0.4s;
+        }
+
+        /* Checklist and Refresh Buttons */
+        #checklistButton {
+            background-color: #17a2b8;
+            margin-top: 10px;
+        }
+
+        #checklistButton:hover {
+            background-color: #138496;
+        }
+
+        #refreshButton {
+            background-color: #007bff;
+            margin-top: 10px;
+        }
+
+        #refreshButton:hover {
+            background-color: #0056b3;
+        }
+
+        /* Section for Disk Space Information */
+        .disk-space {
+            margin-top: 40px;
+        }
+
+        .disk-space h2 {
+            font-size: 22px;
+            color: #444;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .disk-space ul {
+            list-style-type: none;
+            padding: 0;
+            text-align: center;
+        }
+
+        .disk-space li {
+            background-color: #ffeeba;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 16px;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        @media (max-width: 600px) {
+            .downloaded-files li {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .downloaded-files li .remove-button {
+                margin-left: 0;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Video Download Tool</h1>
+
+        <form id="downloadForm">
+            <!-- Optional: chỉ hiển thị thông tin host hiện tại (không dùng để build URL nữa) -->
+            <div class="form-group">
+                <label for="vpsIp">Current Host (auto):</label>
+                <input type="text" id="vpsIp" placeholder="auto" />
+         
+            </div>
+
+            <div class="form-group">
+                <label for="fileType">Select File Type:</label>
+                <select id="fileType" required>
+                    <option value="">-- Select --</option>
+                    <option value="youtube">YouTube</option>
+                    <option value="drive">Google Drive</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="fileIdOrUrl">Enter File ID or URL:</label>
+                <input type="text" id="fileIdOrUrl" placeholder="e.g., https://youtube.com/... or Drive File ID" required />
+            </div>
+
+            <div class="form-group">
+                <label for="fileName">File Name:</label>
+                <input type="text" id="fileName" placeholder="e.g., my_video" required />
+            </div>
+
+            <button type="submit">Download</button>
+            <button type="button" id="refreshButton">Refresh</button>
+            <button type="button" id="checklistButton">Checklist</button>
+        </form>
+
+        <div id="message" class="message"></div>
+
+        <div class="downloaded-files">
+            <h2>Downloaded Files</h2>
+            <ul id="downloadedFilesList"></ul>
+        </div>
+
+        <div class="disk-space">
+            <h2>Disk Space Information</h2>
+            <ul id="diskSpaceList"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Token xác thực (giữ nguyên như bạn)
+        const AUTH_TOKEN = 's3cureT0k3n#2024!';
+
+        // Base API path (HTTPS-safe via Nginx proxy)
+        const API_BASE = '/dlapi';
+
+        // Endpoints
+        const ENDPOINTS = {
+            download: `${API_BASE}/download`,
+            listFiles: `${API_BASE}/list_files`,
+            del: `${API_BASE}/delete`,
+            disk: `${API_BASE}/disk_space`
+        };
+
+        const fileTypeSelect = document.getElementById('fileType');
+        const fileNameInput = document.getElementById('fileName');
+        const downloadForm = document.getElementById('downloadForm');
+        const messageDiv = document.getElementById('message');
+        const downloadedFilesList = document.getElementById('downloadedFilesList');
+        const refreshButton = document.getElementById('refreshButton');
+        const checklistButton = document.getElementById('checklistButton');
+        const diskSpaceList = document.getElementById('diskSpaceList');
+        const vpsIpInput = document.getElementById('vpsIp');
+
+        // Array để lưu trữ các file đang được xử lý tại phiên hiện tại
+        const ongoingDownloads = [];
+
+        // Hiển thị host hiện tại cho dễ nhìn (optional)
+        window.addEventListener('load', () => {
+            vpsIpInput.value = '204.12.220.122';
+        });
+
+        // Hiển thị hoặc ẩn trường File Name dựa trên loại file
+        fileTypeSelect.addEventListener('change', () => {
+            if (fileTypeSelect.value === 'drive') {
+                fileNameInput.required = true;
+            } else {
+                fileNameInput.required = false;
+            }
+        });
+
+        // Xử lý khi form được submit
+        downloadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const fileType = fileTypeSelect.value;
+            const fileIdOrUrl = document.getElementById('fileIdOrUrl').value.trim();
+            let fileName = fileNameInput.value.trim();
+
+            // Chuẩn bị tên file và đảm bảo đuôi .mp4
+            if (!fileName.toLowerCase().endsWith('.mp4')) {
+                fileName += '.mp4';
+            }
+
+            const finalFileName = fileName || extractFileNameFromUrl(fileIdOrUrl);
+
+            // Kiểm tra xem tên file đã tồn tại trong thư mục lưu trữ trên VPS chưa
+            const fileExists = await checkFileExists(finalFileName);
+            if (fileExists) {
+                showMessage(`File "${finalFileName}" already exists in the download folder.`, 'error');
+                return;
+            }
+
+            // Thêm file vào danh sách với trạng thái "Chờ"
+            const downloadItem = addDownloadItem(finalFileName, 'Chờ');
+            ongoingDownloads.push(downloadItem);
+
+            // Chuẩn bị payload yêu cầu
+            const payload = {
+                file_type: fileType,
+                file_id_or_url: fileIdOrUrl,
+                file_name: fileName
+            };
+
+            try {
+                updateDownloadStatus(downloadItem, 'Đang tải', 0);
+
+                const response = await fetch(ENDPOINTS.download, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Nếu Flask bắt buộc token cho /download thì bật dòng dưới:
+                        // 'Authorization': AUTH_TOKEN
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    showMessage(`Success: ${result.message || 'Download started.'}`, 'success');
+                    simulateDownloadProgress(downloadItem, finalFileName);
+                } else {
+                    const errMsg = result?.error || `HTTP ${response.status}`;
+                    showMessage(`Error: ${errMsg}`, 'error');
+                    updateDownloadStatus(downloadItem, `Error: ${errMsg}`, -1);
+                    removeFromOngoing(downloadItem);
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+                updateDownloadStatus(downloadItem, `Error: ${error.message}`, -1);
+                removeFromOngoing(downloadItem);
+            }
+        });
+
+        function removeFromOngoing(downloadItem) {
+            const index = ongoingDownloads.indexOf(downloadItem);
+            if (index > -1) ongoingDownloads.splice(index, 1);
+        }
+
+        async function safeJson(response) {
+            try { return await response.json(); } catch { return {}; }
+        }
+
+        // Hàm kiểm tra file tồn tại
+        async function checkFileExists(fileName) {
+            try {
+                const response = await fetch(ENDPOINTS.listFiles, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': AUTH_TOKEN
+                    }
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    return (result.files || []).some(file => file.fileName === fileName);
+                } else {
+                    showMessage(`Error checking file existence: ${result.error || 'Unknown error'}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                showMessage(`Error checking file existence: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        function addDownloadItem(fileName, status) {
+            const li = document.createElement('li');
+
+            const fileDetailsDiv = document.createElement('div');
+            fileDetailsDiv.className = 'file-details';
+
+            const namePara = document.createElement('p');
+            namePara.innerHTML = `<strong>File Name:</strong> ${fileName}`;
+            namePara.className = 'file-name';
+
+            const statusPara = document.createElement('p');
+            statusPara.innerHTML = `<strong>Status:</strong> ${status}`;
+
+            fileDetailsDiv.appendChild(namePara);
+            fileDetailsDiv.appendChild(statusPara);
+
+            const removeButton = document.createElement('button');
+            removeButton.className = 'remove-button';
+            removeButton.textContent = 'Remove';
+            removeButton.addEventListener('click', () => {
+                deleteFile(fileName, li);
+            });
+
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            const progressBarInner = document.createElement('div');
+            progressBarInner.className = 'progress-bar-inner';
+            progressBar.appendChild(progressBarInner);
+
+            li.appendChild(fileDetailsDiv);
+            li.appendChild(removeButton);
+            li.appendChild(progressBar);
+
+            downloadedFilesList.appendChild(li);
+
+            return {
+                li,
+                statusDiv: statusPara,
+                progressBarInner
+            };
+        }
+
+        function updateDownloadStatus(downloadItem, status, progress) {
+            downloadItem.statusDiv.innerHTML = `<strong>Status:</strong> ${status}`;
+            if (progress >= 0 && progress <= 100) {
+                downloadItem.progressBarInner.style.width = `${progress}%`;
+            } else {
+                downloadItem.progressBarInner.parentElement.style.display = 'none';
+            }
+        }
+
+        function simulateDownloadProgress(downloadItem, fileName) {
+            let progress = 0;
+            const interval = setInterval(async () => {
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    updateDownloadStatus(downloadItem, 'Đã tải xong', 100);
+                    await updateFileDetails(downloadItem, fileName);
+                    removeFromOngoing(downloadItem);
+                } else {
+                    progress += Math.floor(Math.random() * 10) + 5;
+                    if (progress > 100) progress = 100;
+                    updateDownloadStatus(downloadItem, 'Đang tải', progress);
+                }
+            }, 500);
+        }
+
+        async function updateFileDetails(downloadItem, fileName) {
+            try {
+                const response = await fetch(ENDPOINTS.listFiles, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': AUTH_TOKEN
+                    }
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    const serverFile = (result.files || []).find(file => file.fileName === fileName);
+                    if (serverFile) {
+                        const sizePara = document.createElement('p');
+                        sizePara.innerHTML = `<strong>Size:</strong> ${formatBytes(serverFile.size)}`;
+                        sizePara.className = 'size-info';
+
+                        const modifiedPara = document.createElement('p');
+                        modifiedPara.innerHTML = `<strong>Last Modified:</strong> ${serverFile.lastModified}`;
+                        modifiedPara.className = 'modified-info';
+
+                        const existingSizePara = downloadItem.li.querySelector('.size-info');
+                        const existingModifiedPara = downloadItem.li.querySelector('.modified-info');
+                        if (existingSizePara) existingSizePara.remove();
+                        if (existingModifiedPara) existingModifiedPara.remove();
+
+                        downloadItem.li.querySelector('.file-details').appendChild(sizePara);
+                        downloadItem.li.querySelector('.file-details').appendChild(modifiedPara);
+
+                        showMessage(`File "${fileName}" đã được tải xong.`, 'success');
+                    } else {
+                        showMessage(`File "${fileName}" đã được tải nhưng không tìm thấy thông tin chi tiết.`, 'error');
+                    }
+                } else {
+                    showMessage(`Error updating file details: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error updating file details: ${error.message}`, 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function extractFileNameFromUrl(url) {
+            try {
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname;
+                const segments = pathname.split('/');
+                let lastSegment = segments.pop() || segments.pop();
+                return lastSegment || 'downloaded_file';
+            } catch (e) {
+                return 'downloaded_file';
+            }
+        }
+
+        async function deleteFile(fileName, listItem) {
+            try {
+                const response = await fetch(ENDPOINTS.del, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': AUTH_TOKEN
+                    },
+                    body: JSON.stringify({ fileName })
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    showMessage(`Success: ${result.message}`, 'success');
+                    downloadedFilesList.removeChild(listItem);
+                } else {
+                    showMessage(`Error: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        async function fetchFiles() {
+            try {
+                const response = await fetch(ENDPOINTS.listFiles, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': AUTH_TOKEN
+                    }
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    populateFileList(result.files || []);
+                } else {
+                    showMessage(`Error: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function populateFileList(files) {
+            downloadedFilesList.innerHTML = '';
+            files.forEach(file => {
+                const li = document.createElement('li');
+
+                const fileDetailsDiv = document.createElement('div');
+                fileDetailsDiv.className = 'file-details';
+
+                const namePara = document.createElement('p');
+                namePara.innerHTML = `<strong>File Name:</strong> ${file.fileName}`;
+                namePara.className = 'file-name';
+
+                const sizePara = document.createElement('p');
+                sizePara.innerHTML = `<strong>Size:</strong> ${formatBytes(file.size)}`;
+
+                const modifiedPara = document.createElement('p');
+                modifiedPara.innerHTML = `<strong>Last Modified:</strong> ${file.lastModified}`;
+
+                fileDetailsDiv.appendChild(namePara);
+                fileDetailsDiv.appendChild(sizePara);
+                fileDetailsDiv.appendChild(modifiedPara);
+
+                const removeButton = document.createElement('button');
+                removeButton.className = 'remove-button';
+                removeButton.textContent = 'Remove';
+                removeButton.addEventListener('click', () => {
+                    deleteFile(file.fileName, li);
+                });
+
+                li.appendChild(fileDetailsDiv);
+                li.appendChild(removeButton);
+
+                downloadedFilesList.appendChild(li);
+            });
+        }
+
+        async function fetchDiskSpace() {
+            try {
+                const response = await fetch(ENDPOINTS.disk, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': AUTH_TOKEN
+                    }
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    populateDiskSpaceList(result);
+                } else {
+                    showMessage(`Error fetching disk space: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error fetching disk space: ${error.message}`, 'error');
+            }
+        }
+
+        function populateDiskSpaceList(diskInfo) {
+            diskSpaceList.innerHTML = '';
+
+            const totalLi = document.createElement('li');
+            totalLi.textContent = `Total: ${diskInfo.total}`;
+
+            const usedLi = document.createElement('li');
+            usedLi.textContent = `Used: ${diskInfo.used}`;
+
+            const freeLi = document.createElement('li');
+            freeLi.textContent = `Free: ${diskInfo.free}`;
+
+            const percentageLi = document.createElement('li');
+            percentageLi.textContent = `Percentage Free: ${diskInfo.percentage_free}`;
+
+            diskSpaceList.appendChild(totalLi);
+            diskSpaceList.appendChild(usedLi);
+            diskSpaceList.appendChild(freeLi);
+            diskSpaceList.appendChild(percentageLi);
+        }
+
+        refreshButton.addEventListener('click', async () => {
+            if (ongoingDownloads.length === 0) {
+                showMessage('No ongoing downloads to refresh.', 'info');
+                return;
+            }
+
+            try {
+                const response = await fetch(ENDPOINTS.listFiles, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': AUTH_TOKEN
+                    }
+                });
+
+                const result = await safeJson(response);
+
+                if (response.ok) {
+                    const serverFiles = result.files || [];
+
+                    for (let downloadItem of ongoingDownloads.slice()) {
+                        const fileNameElement = downloadItem.li.querySelector('.file-name');
+                        const fileName = extractFileNameFromElement(fileNameElement);
+
+                        const serverFile = serverFiles.find(file => file.fileName === fileName);
+
+                        if (serverFile) {
+                            updateDownloadStatus(downloadItem, 'Đã tải xong', 100);
+
+                            const sizePara = document.createElement('p');
+                            sizePara.innerHTML = `<strong>Size:</strong> ${formatBytes(serverFile.size)}`;
+                            sizePara.className = 'size-info';
+
+                            const modifiedPara = document.createElement('p');
+                            modifiedPara.innerHTML = `<strong>Last Modified:</strong> ${serverFile.lastModified}`;
+                            modifiedPara.className = 'modified-info';
+
+                            const existingSizePara = downloadItem.li.querySelector('.size-info');
+                            const existingModifiedPara = downloadItem.li.querySelector('.modified-info');
+                            if (existingSizePara) existingSizePara.remove();
+                            if (existingModifiedPara) existingModifiedPara.remove();
+
+                            downloadItem.li.querySelector('.file-details').appendChild(sizePara);
+                            downloadItem.li.querySelector('.file-details').appendChild(modifiedPara);
+
+                            removeFromOngoing(downloadItem);
+                            showMessage(`File "${fileName}" đã được tải xong.`, 'success');
+                        }
+                    }
+
+                    showMessage('Refreshed ongoing downloads.', 'success');
+                } else {
+                    showMessage(`Error: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        });
+
+        checklistButton.addEventListener('click', async () => {
+            await fetchFiles();
+            await fetchDiskSpace();
+        });
+
+        function extractFileNameFromElement(element) {
+            return element.textContent.replace('File Name:', '').trim();
+        }
+    </script>
+</body>
+</html>
