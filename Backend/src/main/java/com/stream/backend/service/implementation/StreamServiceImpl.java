@@ -227,15 +227,23 @@ public class StreamServiceImpl implements StreamService {
             // ✅ Nếu stream không phải STOPPED → cập nhật bình thường
 
             // ✅ XÓA VIDEO CŨ KHI UPDATE VIDEOLIST MỚI
-            if (stream.getVideoList() != null) {
-                String oldVideoList = existing.getVideoList();
-                String newVideoList = stream.getVideoList();
+            // Xử lý cả trường hợp FE gửi empty string "" (coi như null)
+            String newVideoList = stream.getVideoList();
+            boolean newVideoIsEmpty = newVideoList == null || newVideoList.trim().isEmpty();
 
-                // Nếu videoList thay đổi và video cũ là file local → xóa video cũ ngay lập tức
+            String oldVideoList = existing.getVideoList();
+
+            if (newVideoIsEmpty) {
+                // FE muốn xóa video → xóa file cũ và set null
+                if (oldVideoList != null && !oldVideoList.isBlank()) {
+                    deleteOldVideoFiles(oldVideoList, null);
+                }
+                existing.setVideoList(null);
+            } else {
+                // FE gửi video mới
                 if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
                     deleteOldVideoFiles(oldVideoList, newVideoList);
                 }
-
                 existing.setVideoList(newVideoList);
             }
 
@@ -243,13 +251,39 @@ public class StreamServiceImpl implements StreamService {
             existing.setTimeStart(stream.getTimeStart());
             existing.setDuration(stream.getDuration());
 
-            // ✅ Nếu chưa có session mà stream đầy đủ thuộc tính => tạo SCHEDULED
-            if (ss == null && isStreamComplete(existing)) {
-                StreamSession newSs = new StreamSession();
-                newSs.setStream(existing);
-                newSs.setStatus("SCHEDULED");
-                newSs.setSpecification("Edited -> scheduled");
-                streamSessionRepository.save(newSs);
+            // ✅ Kiểm tra lại trạng thái stream sau khi cập nhật
+            boolean isComplete = isStreamComplete(existing);
+
+            if (ss == null) {
+                // Chưa có session
+                if (isComplete) {
+                    // Stream đủ điều kiện → tạo SCHEDULED
+                    StreamSession newSs = new StreamSession();
+                    newSs.setStream(existing);
+                    newSs.setStatus("SCHEDULED");
+                    newSs.setSpecification("Edited -> scheduled");
+                    streamSessionRepository.save(newSs);
+                }
+                // Nếu không đủ điều kiện và chưa có session → không làm gì
+            } else {
+                // Đã có session
+                if (isComplete) {
+                    // Stream đủ điều kiện → giữ hoặc set SCHEDULED (nếu chưa phải SCHEDULED/ACTIVE)
+                    if (!"SCHEDULED".equalsIgnoreCase(ss.getStatus()) && !"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
+                        ss.setStatus("SCHEDULED");
+                        ss.setSpecification("Edited -> rescheduled");
+                        streamSessionRepository.save(ss);
+                    }
+                } else {
+                    // Stream KHÔNG đủ điều kiện → set về NONE (không xóa session, chỉ đổi status)
+                    if ("SCHEDULED".equalsIgnoreCase(ss.getStatus())) {
+                        ss.setStatus("NONE");
+                        ss.setSpecification("Edited -> incomplete (missing required fields)");
+                        streamSessionRepository.save(ss);
+                        log.info("[UPDATE-STREAM] Stream {} is now incomplete, changed status from SCHEDULED to NONE",
+                                id);
+                    }
+                }
             }
         }
 
@@ -359,8 +393,8 @@ public class StreamServiceImpl implements StreamService {
         // Kiểm tra timeStart
         boolean hasTimeStart = stream.getTimeStart() != null;
 
-        // Kiểm tra duration
-        boolean hasDuration = stream.getDuration() != null;
+        // Kiểm tra duration (phải khác null VÀ khác 0)
+        boolean hasDuration = stream.getDuration() != null && stream.getDuration() != 0;
 
         // Kiểm tra keyStream
         String keyStream = stream.getKeyStream();
