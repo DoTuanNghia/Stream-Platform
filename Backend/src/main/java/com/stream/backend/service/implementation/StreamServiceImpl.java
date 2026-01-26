@@ -185,54 +185,75 @@ public class StreamServiceImpl implements StreamService {
         Stream existing = streamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
+        // ✅ Kiểm tra trạng thái STOPPED trước khi cập nhật
+        StreamSession ss = streamSessionRepository
+                .findTopByStreamIdOrderByIdDesc(id)
+                .orElse(null);
+
+        boolean isStoppedOrError = ss != null && ("STOPPED".equalsIgnoreCase(ss.getStatus())
+                || "ERROR".equalsIgnoreCase(ss.getStatus()));
+
+        // ✅ Luôn cập nhật name và keyStream
         if (stream.getName() != null)
             existing.setName(stream.getName());
         if (stream.getKeyStream() != null)
             existing.setKeyStream(stream.getKeyStream());
 
-        // ✅ XÓA VIDEO CŨ KHI UPDATE VIDEOLIST MỚI
-        if (stream.getVideoList() != null) {
-            String oldVideoList = existing.getVideoList();
-            String newVideoList = stream.getVideoList();
+        // ✅ Nếu stream đang STOPPED hoặc ERROR → chỉ giữ name và keyStream, reset các
+        // trường khác
+        if (isStoppedOrError) {
+            log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, resetting all fields except name and keyStream", id);
 
-            // Nếu videoList thay đổi và video cũ là file local → xóa video cũ ngay lập tức
-            if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
-                deleteOldVideoFiles(oldVideoList, newVideoList);
+            // Xóa video cũ nếu có
+            String oldVideoList = existing.getVideoList();
+            if (oldVideoList != null && !oldVideoList.isBlank()) {
+                deleteOldVideoFiles(oldVideoList, null);
             }
 
-            existing.setVideoList(newVideoList);
-        }
+            // Reset các trường về null
+            existing.setVideoList(null);
+            existing.setTimeStart(null);
+            existing.setDuration(null);
 
-        // ✅ cho phép update cả null (khi FE gửi null)
-        existing.setTimeStart(stream.getTimeStart());
-        existing.setDuration(stream.getDuration());
-
-        Stream saved = streamRepository.save(existing);
-
-        // ✅ Nếu stream đang STOPPED mà user sửa lại -> chuyển về SCHEDULED
-        StreamSession ss = streamSessionRepository
-                .findTopByStreamIdOrderByIdDesc(id)
-                .orElse(null);
-
-        if (ss != null && ("STOPPED".equalsIgnoreCase(ss.getStatus())
-                || "ERROR".equalsIgnoreCase(ss.getStatus()))) {
+            // Reset session về SCHEDULED
             ss.setStatus("SCHEDULED");
-            ss.setSpecification("Edited -> rescheduled");
+            ss.setSpecification("Edited -> rescheduled (reset from STOPPED)");
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
             ss.setLastError(null);
             ss.setLastErrorAt(null);
             streamSessionRepository.save(ss);
+        } else {
+            // ✅ Nếu stream không phải STOPPED → cập nhật bình thường
+
+            // ✅ XÓA VIDEO CŨ KHI UPDATE VIDEOLIST MỚI
+            if (stream.getVideoList() != null) {
+                String oldVideoList = existing.getVideoList();
+                String newVideoList = stream.getVideoList();
+
+                // Nếu videoList thay đổi và video cũ là file local → xóa video cũ ngay lập tức
+                if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
+                    deleteOldVideoFiles(oldVideoList, newVideoList);
+                }
+
+                existing.setVideoList(newVideoList);
+            }
+
+            // ✅ cho phép update cả null (khi FE gửi null)
+            existing.setTimeStart(stream.getTimeStart());
+            existing.setDuration(stream.getDuration());
+
+            // ✅ Nếu chưa có session mà có timeStart => tạo SCHEDULED
+            if (ss == null && existing.getTimeStart() != null) {
+                StreamSession newSs = new StreamSession();
+                newSs.setStream(existing);
+                newSs.setStatus("SCHEDULED");
+                newSs.setSpecification("Edited -> scheduled");
+                streamSessionRepository.save(newSs);
+            }
         }
 
-        // ✅ Nếu chưa có session mà có timeStart => tạo SCHEDULED
-        if (ss == null && saved.getTimeStart() != null) {
-            StreamSession newSs = new StreamSession();
-            newSs.setStream(saved);
-            newSs.setStatus("SCHEDULED");
-            newSs.setSpecification("Edited -> scheduled");
-            streamSessionRepository.save(newSs);
-        }
+        Stream saved = streamRepository.save(existing);
 
         return saved;
     }
