@@ -89,8 +89,8 @@ public class StreamServiceImpl implements StreamService {
 
         Stream saved = streamRepository.save(stream);
 
-        // ✅ nếu có timeStart => tạo/ghi đè session SCHEDULED
-        if (saved.getTimeStart() != null) {
+        // ✅ Kiểm tra đầy đủ các thuộc tính để tạo session SCHEDULED
+        if (isStreamComplete(saved)) {
             StreamSession ss = streamSessionRepository
                     .findTopByStreamIdOrderByIdDesc(saved.getId())
                     .orElse(null);
@@ -243,8 +243,8 @@ public class StreamServiceImpl implements StreamService {
             existing.setTimeStart(stream.getTimeStart());
             existing.setDuration(stream.getDuration());
 
-            // ✅ Nếu chưa có session mà có timeStart => tạo SCHEDULED
-            if (ss == null && existing.getTimeStart() != null) {
+            // ✅ Nếu chưa có session mà stream đầy đủ thuộc tính => tạo SCHEDULED
+            if (ss == null && isStreamComplete(existing)) {
                 StreamSession newSs = new StreamSession();
                 newSs.setStream(existing);
                 newSs.setStatus("SCHEDULED");
@@ -341,5 +341,31 @@ public class StreamServiceImpl implements StreamService {
                 || field.equals("timeStart")
                 || field.equals("name")
                 || field.equals("duration");
+    }
+
+    /**
+     * Kiểm tra stream có đầy đủ các thuộc tính cần thiết để được SCHEDULED
+     * Các thuộc tính cần thiết: videoList, timeStart, duration, keyStream
+     */
+    private boolean isStreamComplete(Stream stream) {
+        if (stream == null) {
+            return false;
+        }
+
+        // Kiểm tra videoList
+        String videoList = stream.getVideoList();
+        boolean hasVideoList = videoList != null && !videoList.trim().isEmpty();
+
+        // Kiểm tra timeStart
+        boolean hasTimeStart = stream.getTimeStart() != null;
+
+        // Kiểm tra duration
+        boolean hasDuration = stream.getDuration() != null;
+
+        // Kiểm tra keyStream
+        String keyStream = stream.getKeyStream();
+        boolean hasKeyStream = keyStream != null && !keyStream.trim().isEmpty();
+
+        return hasVideoList && hasTimeStart && hasDuration && hasKeyStream;
     }
 }

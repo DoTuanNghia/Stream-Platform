@@ -63,8 +63,20 @@ const Stream = () => {
 
       const fromBe = rawMap[sid];
       if (fromBe) normalized[sid] = String(fromBe).toUpperCase();
-      else if (st?.timeStart) normalized[sid] = "SCHEDULED";
-      else normalized[sid] = "NONE";
+      else {
+        // ✅ Kiểm tra đủ các thuộc tính cần thiết để stream được SCHEDULED
+        const hasVideoList = st?.videoList && st.videoList.trim() !== "";
+        const hasTimeStart = st?.timeStart;
+        const hasDuration = st?.duration !== null && st?.duration !== undefined;
+        const hasKeyStream = st?.keyStream && st.keyStream.trim() !== "";
+
+        // Chỉ SCHEDULED khi có đủ tất cả thuộc tính
+        if (hasVideoList && hasTimeStart && hasDuration && hasKeyStream) {
+          normalized[sid] = "SCHEDULED";
+        } else {
+          normalized[sid] = "NONE";
+        }
+      }
     });
 
     return normalized;
