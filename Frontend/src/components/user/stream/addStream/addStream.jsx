@@ -85,7 +85,8 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
     // Nếu rỗng thì lưu như bình thường
     if (!rawInput) {
-      onSave({ ...form, videoList: "" });
+      await onSave({ ...form, videoList: "" });
+      onClose();
       return;
     }
 
@@ -104,7 +105,6 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
         if (downloadResult.success) {
           // 2. Download thành công - tạo/cập nhật stream với video path thực
           const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
-          setDownloadStatus(`Download thành công: ${downloadResult.fileName}. Đang lưu luồng...`);
 
           // 3. Cập nhật form để hiển thị video path trong input
           setForm((prev) => ({ ...prev, videoList: videoPath }));
@@ -124,18 +124,26 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           // 5. Await onSave để đảm bảo API call hoàn thành
           await onSave(formData);
 
-          const actionText = initialData ? "cập nhật" : "tạo";
-          alert(`Download thành công!\nFile: ${downloadResult.fileName}\nLuồng đã được ${actionText} với video: ${videoPath}`);
+          // 6. Hiển thị thông báo thành công trong 8 giây, sau đó đóng modal
+          setDownloadStatus(`Download thành công!`);
+          setIsDownloading(false);
+          setTimeout(() => {
+            setDownloadStatus("");
+            onClose();
+          }, 8000);
+          return; // Thoát sớm để không chạy finally
         } else {
-          setDownloadStatus(`Lỗi download: ${downloadResult.message}`);
-          alert(`Download thất bại: ${downloadResult.message}\nLuồng không được lưu.`);
+          // Hiển thị lỗi vĩnh viễn cho đến khi user thử lại
+          setDownloadStatus(`Lỗi download!`);
+          setIsDownloading(false);
+          return; // Thoát sớm để không chạy finally
         }
       } catch (error) {
         console.error("Error during Google Drive download:", error);
-        setDownloadStatus(`Lỗi: ${error.message}`);
-        alert(`Có lỗi xảy ra: ${error.message}`);
-      } finally {
+        // Hiển thị lỗi vĩnh viễn cho đến khi user thử lại
+        setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
         setIsDownloading(false);
+        return; // Thoát sớm để không chạy finally
       }
 
       return;
@@ -145,7 +153,8 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     // Nếu đã là full path thì giữ nguyên
     const isFullPath = /^[a-zA-Z]:\\/.test(rawInput);
     if (isFullPath) {
-      onSave({ ...form, videoList: rawInput });
+      await onSave({ ...form, videoList: rawInput });
+      onClose();
       return;
     }
 
@@ -155,10 +164,11 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     // Ghép thành D:\videos\filename
     const fullPath = `${VIDEO_BASE_DIR}${filename}`;
 
-    onSave({
+    await onSave({
       ...form,
       videoList: fullPath,
     });
+    onClose();
   };
 
   return (

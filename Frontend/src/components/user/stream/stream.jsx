@@ -165,8 +165,9 @@ const Stream = () => {
 
       console.log("Server response:", savedStream);
 
-      setIsAddOpen(false);
-      setEditingStream(null);
+      // KHÔNG đóng modal ở đây - để addStream.jsx kiểm soát việc đóng modal
+      // setIsAddOpen(false);
+      // setEditingStream(null);
       await fetchAll();
 
       // Return saved stream data
@@ -193,8 +194,8 @@ const Stream = () => {
       await fetchAll();
     } catch (err) {
       console.error(err);
-      const msg = err?.response?.data?.message || "Tạo nhiều luồng thất bại.";
-      alert(msg);
+      // const msg = err?.response?.data?.message || "Tạo nhiều luồng thất bại.";
+      // alert(msg);
     }
   };
 
