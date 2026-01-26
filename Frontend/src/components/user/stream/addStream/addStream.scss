@@ -1,7 +1,6 @@
 // src/components/stream/addStream/addStream.scss
 @use "../../../../styles/shared-table" as *;
 
-
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -96,7 +95,8 @@
   gap: 8px;
   align-items: center;
 
-  input[type="time"],
+  // ✅ giữ layout 2 ô chia đều
+  input[name="startTime"],
   input[type="date"] {
     flex: 1;
   }
@@ -122,14 +122,12 @@
   width: 120px;
 }
 
-// Hint text cho input
 .modal__hint {
   font-size: 11px;
   color: #6b7280;
   margin-top: 4px;
 }
 
-// Download status display
 .modal__download-status {
   display: flex;
   align-items: center;
@@ -149,7 +147,6 @@
   }
 }
 
-// Spinner animation
 .modal__spinner {
   display: inline-block;
   width: 14px;
@@ -166,8 +163,8 @@
   }
 }
 
-// Disabled state for inputs
 .modal__field {
+
   input:disabled,
   textarea:disabled {
     opacity: 0.6;
@@ -176,7 +173,6 @@
   }
 }
 
-// Disabled button state
 .modal__submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
