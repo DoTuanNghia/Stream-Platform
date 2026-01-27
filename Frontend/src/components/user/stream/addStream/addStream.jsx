@@ -26,7 +26,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
   const overlayMouseDownOnBackdropRef = useRef(false);
   const timeInputRef = useRef(null);
 
-  const to12hDisplay = (digits) => {
+  const to24hDisplay = (digits) => {
     const d = (digits || "").replace(/\D/g, "").slice(0, 4);
     const hhStr = d.slice(0, 2);
     const mmStr = d.slice(2, 4);
@@ -36,17 +36,12 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     const hh24 = Number(hhStr);
     if (Number.isNaN(hh24) || hh24 > 23) return "";
 
-    const ampm = hh24 >= 12 ? "PM" : "AM";
-    let hh12 = hh24 % 12;
-    if (hh12 === 0) hh12 = 12;
-
-    const hh12Str = String(hh12).padStart(2, "0");
     const mmDisplay =
       mmStr.length === 0 ? "--" :
         mmStr.length === 1 ? `${mmStr}-` :
           mmStr;
 
-    return `${hh12Str}:${mmDisplay} ${ampm}`;
+    return `${hhStr}:${mmDisplay}`;
   };
 
   const digitsTo24h = (digits) => {
@@ -191,7 +186,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
     // nếu user đã gõ timeDigits mà chưa đủ/không hợp lệ
     if (timeDigits && !form.startTime) {
-      setDownloadStatus("Thời gian bắt đầu chưa hợp lệ. Ví dụ gõ 2122 => 09:22 PM (tức 21:22).");
+      setDownloadStatus("Thời gian bắt đầu chưa hợp lệ. Ví dụ gõ 2122 => 21:22.");
       return;
     }
 
@@ -316,7 +311,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 ref={timeInputRef}
                 type="text"
                 name="startTime"
-                value={to12hDisplay(timeDigits)}
+                value={to24hDisplay(timeDigits)}
                 onKeyDown={handleTimeKeyDown}
                 onPaste={handleTimePaste}
                 onChange={() => { /* noop: xử lý bằng keydown */ }}
@@ -325,7 +320,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 inputMode="numeric"
                 autoComplete="off"
                 disabled={isDownloading}
-                title="Gõ 4 số HHMM. Ví dụ: 2122 => 09:22 PM (tức 21:22)."
+                title="Gõ 4 số HHMM. Ví dụ: 2122 => 21:22."
               />
 
               <input
