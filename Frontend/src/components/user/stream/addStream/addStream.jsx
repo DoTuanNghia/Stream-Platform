@@ -11,7 +11,7 @@ const emptyForm = {
   keyLive: "",
   videoList: "",
   fullHd: 0,
-  startTime: "",
+  startTime: "", // 24h "HH:mm" để submit
   startDate: "",
   streamAfter: 0,
   duration: 0,
@@ -19,34 +19,94 @@ const emptyForm = {
 
 const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
   const [form, setForm] = useState(emptyForm);
+  const [timeDigits, setTimeDigits] = useState(""); // HHMM: "2122"
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState("");
 
   const overlayMouseDownOnBackdropRef = useRef(false);
+  const timeInputRef = useRef(null);
+
+  const to24hDisplay = (digits) => {
+    const d = (digits || "").replace(/\D/g, "").slice(0, 4);
+    const hhStr = d.slice(0, 2);
+    const mmStr = d.slice(2, 4);
+
+    if (hhStr.length < 2) return hhStr; // "2" / "21"
+
+    const hh24 = Number(hhStr);
+    if (Number.isNaN(hh24) || hh24 > 23) return "";
+
+    const mmDisplay =
+      mmStr.length === 0 ? "--" :
+        mmStr.length === 1 ? `${mmStr}-` :
+          mmStr;
+
+    return `${hhStr}:${mmDisplay}`;
+  };
+
+  const digitsTo24h = (digits) => {
+    const d = (digits || "").replace(/\D/g, "").slice(0, 4);
+    if (d.length !== 4) return "";
+    const hh = Number(d.slice(0, 2));
+    const mm = Number(d.slice(2, 4));
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return "";
+    if (hh > 23 || mm > 59) return "";
+    return `${d.slice(0, 2)}:${d.slice(2, 4)}`;
+  };
+
+  const syncDigits = (nextDigits) => {
+    const d = (nextDigits || "").replace(/\D/g, "").slice(0, 4);
+
+    // chặn giờ nếu đủ 2 số
+    if (d.length >= 2) {
+      const hh = Number(d.slice(0, 2));
+      if (Number.isNaN(hh) || hh > 23) return;
+    }
+
+    // chặn phút nếu đủ 4 số
+    if (d.length === 4) {
+      const mm = Number(d.slice(2, 4));
+      if (Number.isNaN(mm) || mm > 59) return;
+    }
+
+    setTimeDigits(d);
+
+    const t24 = digitsTo24h(d);
+    setForm((prev) => ({
+      ...prev,
+      startTime: t24, // chỉ có khi đủ 4 số hợp lệ
+    }));
+  };
 
   useEffect(() => {
     if (!isOpen) return;
 
     if (initialData) {
       const time = initialData.timeStart ? new Date(initialData.timeStart) : null;
+      const initDate = time ? time.toISOString().slice(0, 10) : "";
+      const initTime24 = time ? time.toTimeString().slice(0, 5) : ""; // "HH:mm"
+      const initDigits = initTime24 ? initTime24.replace(":", "") : "";
 
       setForm({
         note: initialData.name || "",
         keyLive: initialData.keyStream || "",
         videoList: initialData.videoList || "",
         fullHd: 0,
-        startDate: time ? time.toISOString().slice(0, 10) : "",
-        startTime: time ? time.toTimeString().slice(0, 5) : "",
+        startDate: initDate,
+        startTime: initTime24,
         streamAfter: 0,
         duration:
           initialData.duration !== null && initialData.duration !== undefined
             ? initialData.duration
             : 0,
       });
+
+      setTimeDigits(initDigits);
     } else {
       setForm(emptyForm);
+      setTimeDigits("");
     }
-    // Reset download status khi mở/đóng modal
+
     setDownloadStatus("");
     setIsDownloading(false);
   }, [isOpen, initialData]);
@@ -70,112 +130,141 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ✅ Quan trọng: không đọc e.target.value nữa (vì value đang có "PM/AM")
+  // Ta bắt phím để chỉnh timeDigits
+  const handleTimeKeyDown = (e) => {
+    const k = e.key;
+
+    // cho phép tab
+    if (k === "Tab") return;
+
+    // backspace/delete
+    if (k === "Backspace" || k === "Delete") {
+      e.preventDefault();
+      syncDigits(timeDigits.slice(0, -1));
+      return;
+    }
+
+    // chỉ nhận số
+    if (/^\d$/.test(k)) {
+      e.preventDefault();
+      syncDigits((timeDigits + k).slice(0, 4));
+      return;
+    }
+
+    // cho phép phím điều hướng
+    if (k === "ArrowLeft" || k === "ArrowRight" || k === "Home" || k === "End") {
+      e.preventDefault();
+      return;
+    }
+
+    // chặn mọi thứ khác
+    e.preventDefault();
+  };
+
+  const handleTimePaste = (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData?.getData("text") || "").trim();
+    const digits = text.replace(/\D/g, "").slice(0, 4);
+    if (!digits) return;
+    syncDigits(digits);
+  };
+
+  const handleTimeBlur = () => {
+    // Nếu user bỏ dở (chưa đủ 4 số) thì clear để tránh submit rác
+    if (timeDigits && timeDigits.length < 4) {
+      setTimeDigits("");
+      setForm((prev) => ({ ...prev, startTime: "" }));
+    }
+  };
+
   const VIDEO_BASE_DIR = "D:\\videos\\";
 
-
-  /**
-   * Xử lý submit form - có tích hợp auto download từ Google Drive
-   * Flow mới: Download TRƯỚC, sau đó mới tạo stream với video path thực
-   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.keyLive) return;
 
-    const rawInput = (form.videoList || "").trim();
-
-    // Nếu rỗng thì lưu như bình thường
-    if (!rawInput) {
-      onSave({ ...form, videoList: "" });
+    // nếu user đã gõ timeDigits mà chưa đủ/không hợp lệ
+    if (timeDigits && !form.startTime) {
+      setDownloadStatus("Thời gian bắt đầu chưa hợp lệ. Ví dụ gõ 2122 => 21:22.");
       return;
     }
 
-    // Kiểm tra có phải là Google Drive URL không
+    const rawInput = (form.videoList || "").trim();
+
+    if (!rawInput) {
+      await onSave({ ...form, videoList: "" });
+      onClose();
+      return;
+    }
+
     if (isGoogleDriveUrl(rawInput)) {
-      // ---- FLOW: Google Drive URL ----
-      // Download TRƯỚC, sau đó mới tạo/cập nhật stream với video path thực
       setIsDownloading(true);
       setDownloadStatus("Đang chuẩn bị download...");
 
       try {
-        // 1. Bắt đầu download từ Google Drive TRƯỚC
         setDownloadStatus("Đang download video từ Google Drive...");
         const downloadResult = await processGoogleDriveDownload(rawInput);
 
         if (downloadResult.success) {
-          // 2. Download thành công - tạo/cập nhật stream với video path thực
           const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
-          setDownloadStatus(`Download thành công: ${downloadResult.fileName}. Đang lưu luồng...`);
-
-          // 3. Cập nhật form để hiển thị video path trong input
           setForm((prev) => ({ ...prev, videoList: videoPath }));
 
-          // 4. Tạo formData với video path thực (QUAN TRỌNG: dùng videoPath trực tiếp, không phải form.videoList)
           const formData = {
             note: form.note,
             keyLive: form.keyLive,
-            videoList: videoPath, // <-- Video path thực, không phải URL Drive
-            startTime: form.startTime,
+            videoList: videoPath,
+            startTime: form.startTime, // "HH:mm"
             startDate: form.startDate,
             duration: form.duration,
           };
 
-          console.log("Saving stream with formData:", formData); // Debug log
-
-          // 5. Await onSave để đảm bảo API call hoàn thành
           await onSave(formData);
 
-          const actionText = initialData ? "cập nhật" : "tạo";
-          alert(`Download thành công!\nFile: ${downloadResult.fileName}\nLuồng đã được ${actionText} với video: ${videoPath}`);
+          setDownloadStatus("Download thành công!");
+          setIsDownloading(false);
+          setTimeout(() => {
+            setDownloadStatus("");
+            onClose();
+          }, 8000);
+          return;
         } else {
-          setDownloadStatus(`Lỗi download: ${downloadResult.message}`);
-          alert(`Download thất bại: ${downloadResult.message}\nLuồng không được lưu.`);
+          setDownloadStatus("Lỗi download!");
+          setIsDownloading(false);
+          return;
         }
       } catch (error) {
         console.error("Error during Google Drive download:", error);
-        setDownloadStatus(`Lỗi: ${error.message}`);
-        alert(`Có lỗi xảy ra: ${error.message}`);
-      } finally {
+        setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
         setIsDownloading(false);
+        return;
       }
-
-      return;
     }
 
-    // ---- FLOW: Tên video thông thường (không phải Google Drive) ----
-    // Nếu đã là full path thì giữ nguyên
+    // Tên video thường
     const isFullPath = /^[a-zA-Z]:\\/.test(rawInput);
     if (isFullPath) {
-      onSave({ ...form, videoList: rawInput });
+      await onSave({ ...form, videoList: rawInput });
+      onClose();
       return;
     }
 
-    // Thêm .mp4 nếu thiếu
     const filename = rawInput.toLowerCase().endsWith(".mp4") ? rawInput : `${rawInput}.mp4`;
-
-    // Ghép thành D:\videos\filename
     const fullPath = `${VIDEO_BASE_DIR}${filename}`;
 
-    onSave({
+    await onSave({
       ...form,
       videoList: fullPath,
     });
+    onClose();
   };
 
   return (
-    <div
-      className="modal-overlay"
-      onMouseDown={handleOverlayMouseDown}
-      onMouseUp={handleOverlayMouseUp}
-    >
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onMouseUp={handleOverlayMouseUp}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span className="modal__title">
-            {initialData ? "Sửa Stream" : "Tạo Stream"}
-          </span>
-
-          <button className="modal__close" onClick={onClose} disabled={isDownloading}>
-            ×
-          </button>
+          <span className="modal__title">{initialData ? "Sửa Stream" : "Tạo Stream"}</span>
+          <button className="modal__close" onClick={onClose} disabled={isDownloading}>×</button>
         </div>
 
         <form className="modal__body" onSubmit={handleSubmit}>
@@ -213,21 +302,27 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               placeholder='Tên video (vd: "video1.mp4") hoặc URL Google Drive'
               disabled={isDownloading}
             />
-            {/* <small className="modal__hint">
-              💡 Nếu nhập link Google Drive, video sẽ tự động được tải về server với tên tự động.
-            </small> */}
           </div>
 
           <div className="modal__field">
             <label>Thời gian bắt đầu</label>
             <div className="modal__row-inline">
               <input
-                type="time"
+                ref={timeInputRef}
+                type="text"
                 name="startTime"
-                value={form.startTime}
-                onChange={handleChange}
+                value={to24hDisplay(timeDigits)}
+                onKeyDown={handleTimeKeyDown}
+                onPaste={handleTimePaste}
+                onChange={() => { /* noop: xử lý bằng keydown */ }}
+                onBlur={handleTimeBlur}
+                placeholder="--:--"
+                inputMode="numeric"
+                autoComplete="off"
                 disabled={isDownloading}
+                title="Gõ 4 số HHMM. Ví dụ: 2122 => 21:22."
               />
+
               <input
                 type="date"
                 name="startDate"
@@ -250,7 +345,6 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
             />
           </div>
 
-          {/* Hiển thị trạng thái download */}
           {downloadStatus && (
             <div className={`modal__download-status ${isDownloading ? "modal__download-status--loading" : ""}`}>
               {isDownloading && <span className="modal__spinner"></span>}
@@ -259,11 +353,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           )}
 
           <div className="modal__footer">
-            <button
-              type="submit"
-              className="btn btn--primary modal__submit"
-              disabled={isDownloading}
-            >
+            <button type="submit" className="btn btn--primary modal__submit" disabled={isDownloading}>
               {isDownloading ? "Đang xử lý..." : "Lưu"}
             </button>
           </div>

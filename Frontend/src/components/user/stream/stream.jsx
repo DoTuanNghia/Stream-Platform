@@ -63,8 +63,20 @@ const Stream = () => {
 
       const fromBe = rawMap[sid];
       if (fromBe) normalized[sid] = String(fromBe).toUpperCase();
-      else if (st?.timeStart) normalized[sid] = "SCHEDULED";
-      else normalized[sid] = "NONE";
+      else {
+        // ✅ Kiểm tra đủ các thuộc tính cần thiết để stream được SCHEDULED
+        const hasVideoList = st?.videoList && st.videoList.trim() !== "";
+        const hasTimeStart = st?.timeStart;
+        const hasDuration = st?.duration !== null && st?.duration !== undefined;
+        const hasKeyStream = st?.keyStream && st.keyStream.trim() !== "";
+
+        // Chỉ SCHEDULED khi có đủ tất cả thuộc tính
+        if (hasVideoList && hasTimeStart && hasDuration && hasKeyStream) {
+          normalized[sid] = "SCHEDULED";
+        } else {
+          normalized[sid] = "NONE";
+        }
+      }
     });
 
     return normalized;
@@ -153,15 +165,19 @@ const Stream = () => {
 
       console.log("Server response:", savedStream);
 
-      setIsAddOpen(false);
-      setEditingStream(null);
+      // KHÔNG đóng modal ở đây - để addStream.jsx kiểm soát việc đóng modal
+      // setIsAddOpen(false);
+      // setEditingStream(null);
       await fetchAll();
 
       // Return saved stream data
       return savedStream;
     } catch (err) {
       console.error("Error in handleSaveStream:", err);
-      alert(editingStream ? "Sửa luồng thất bại." : "Tạo luồng thất bại.");
+      // Chỉ hiển thị lỗi khi tạo luồng mới, không hiển thị khi sửa
+      if (!editingStream) {
+        alert("Tạo luồng thất bại.");
+      }
       return null;
     }
   };
@@ -178,8 +194,8 @@ const Stream = () => {
       await fetchAll();
     } catch (err) {
       console.error(err);
-      const msg = err?.response?.data?.message || "Tạo nhiều luồng thất bại.";
-      alert(msg);
+      // const msg = err?.response?.data?.message || "Tạo nhiều luồng thất bại.";
+      // alert(msg);
     }
   };
 
@@ -196,8 +212,8 @@ const Stream = () => {
 
   const handleStreamNow = async (stream) => {
     const stt = String(streamStatusMap[stream.id] || "NONE").toUpperCase();
-    if (stt === "ACTIVE") {
-      alert("Luồng đang chạy (ACTIVE), không thể Stream Ngay.");
+    // ✅ Chỉ cho phép Stream Ngay khi trạng thái là SCHEDULED (đã chặn ở UI, đây là bảo vệ thêm)
+    if (stt !== "SCHEDULED") {
       return;
     }
 
@@ -286,8 +302,9 @@ const Stream = () => {
                 streams.map((st, index) => {
                   const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
 
-                  // ✅ Disable Stream Ngay khi ACTIVE hoặc STOPPED
-                  const blocked = status === "ACTIVE" || status === "STOPPED";
+                  // ✅ Chỉ enable nút Stream Ngay khi trạng thái là SCHEDULED
+                  // Disable cho ACTIVE và NONE
+                  const canStreamNow = status === "SCHEDULED";
 
                   return (
                     <tr key={st.id}>
@@ -302,25 +319,33 @@ const Stream = () => {
                           <button className="btn btn--danger" onClick={() => handleDelete(st.id)}>
                             Xóa
                           </button>
-                          <button className="btn btn--ghost" onClick={() => openEditModal(st)}>
+                          <button
+                            className={`btn btn--ghost ${status === "ACTIVE" ? "btn--disabled" : ""}`}
+                            onClick={() => {
+                              if (status === "ACTIVE") return;
+                              openEditModal(st);
+                            }}
+                            aria-disabled={status === "ACTIVE"}
+                            title={status === "ACTIVE" ? "Không thể sửa khi luồng đang ACTIVE" : ""}
+                          >
                             Sửa
                           </button>
 
                           <button
-                            className={`btn btn--success ${blocked ? "btn--disabled" : ""}`}
+                            className={`btn btn--success ${!canStreamNow ? "btn--disabled" : ""}`}
                             onClick={() => {
-                              if (blocked) return;
+                              if (!canStreamNow) return;
                               handleStreamNow(st);
                             }}
-                            aria-disabled={blocked}
+                            aria-disabled={!canStreamNow}
                             title={
-                              status === "ACTIVE"
-                                ? "Luồng đang ACTIVE, không thể Stream Ngay"
-                                : status === "STOPPED"
-                                  ? "Luồng đã STOPPED, hãy bấm Sửa để chuyển lại SCHEDULED rồi mới Stream"
-                                  : status === "SCHEDULED"
-                                    ? "Luồng đang SCHEDULED, có thể Stream Ngay"
-                                    : ""
+                              status === "SCHEDULED"
+                                ? "Luồng đang SCHEDULED, có thể Stream Ngay"
+                                : status === "ACTIVE"
+                                  ? "Luồng đang ACTIVE, không thể Stream Ngay"
+                                  : status === "NONE"
+                                    ? "Luồng chưa đủ thông tin (NONE), không thể Stream Ngay"
+                                    : "Không thể Stream Ngay với trạng thái hiện tại"
                             }
                           >
                             Stream Ngay

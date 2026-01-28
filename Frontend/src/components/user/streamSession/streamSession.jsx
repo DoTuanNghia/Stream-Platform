@@ -80,14 +80,15 @@ const StreamSession = () => {
 
       const list = data.streamSessions || [];
 
-      // ✅ Ưu tiên ACTIVE lên trước, rồi natural sort theo stream.name
-      const rank = (s) => (String(s?.status || "").toUpperCase() === "ACTIVE" ? 0 : 1);
+      // ✅ Chỉ lọc các session có trạng thái ACTIVE (đang livestream)
+      const activeOnly = list.filter(
+        (s) => String(s?.status || "").toUpperCase() === "ACTIVE"
+      );
 
-      const sorted = [...list].sort((a, b) => {
-        const r = rank(a) - rank(b);
-        if (r !== 0) return r;
-        return collator.compare(a?.stream?.name || "", b?.stream?.name || "");
-      });
+      // ✅ Natural sort theo stream.name
+      const sorted = [...activeOnly].sort((a, b) =>
+        collator.compare(a?.stream?.name || "", b?.stream?.name || "")
+      );
 
       setSessions(sorted);
 
