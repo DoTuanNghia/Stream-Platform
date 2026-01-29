@@ -26,7 +26,7 @@ public class StreamScheduler {
     private final YouTubeLiveService youTubeLiveService;
 
     @Scheduled(fixedDelay = 10_000)
-    public void autoStartAndStop() { 
+    public void autoStartAndStop() {
         LocalDateTime now = LocalDateTime.now();
         autoStartScheduledSessions(now);
         autoStopExpiredSessions(now);
@@ -50,8 +50,7 @@ public class StreamScheduler {
         do {
             p = streamSessionRepository.findByStatusIgnoreCase(
                     "STOPPED",
-                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"))
-            );
+                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id")));
 
             for (StreamSession session : p.getContent()) {
                 // Kiểm tra nếu stoppedAt đã hơn 24h
@@ -69,7 +68,7 @@ public class StreamScheduler {
                     continue;
                 }
 
-                log.info("[AUTO-DELETE-VIDEO] sessionId={}, streamId={}, stoppedAt={}", 
+                log.info("[AUTO-DELETE-VIDEO] sessionId={}, streamId={}, stoppedAt={}",
                         session.getId(), stream.getId(), stoppedAt);
 
                 try {
@@ -91,13 +90,14 @@ public class StreamScheduler {
         do {
             p = streamSessionRepository.findByStatusIgnoreCase(
                     "SCHEDULED",
-                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"))
-            );
+                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id")));
 
             for (StreamSession session : p.getContent()) {
                 Stream stream = session.getStream();
-                if (stream == null || stream.getTimeStart() == null) continue;
-                if (stream.getTimeStart().isAfter(now)) continue;
+                if (stream == null || stream.getTimeStart() == null)
+                    continue;
+                if (stream.getTimeStart().isAfter(now))
+                    continue;
 
                 log.info("[AUTO-START] sessionId={}, streamId={}", session.getId(), stream.getId());
 
@@ -135,22 +135,26 @@ public class StreamScheduler {
         do {
             p = streamSessionRepository.findByStatusIgnoreCase(
                     "ACTIVE",
-                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"))
-            );
+                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id")));
 
             for (StreamSession session : p.getContent()) {
                 Stream stream = session.getStream();
-                if (stream == null) continue;
+                if (stream == null)
+                    continue;
 
                 Integer duration = stream.getDuration();
-                if (duration == null) continue;
-                if (duration == -1) continue;
+                if (duration == null)
+                    continue;
+                if (duration == -1)
+                    continue;
 
                 LocalDateTime base = session.getStartedAt() != null ? session.getStartedAt() : stream.getTimeStart();
-                if (base == null) continue;
+                if (base == null)
+                    continue;
 
                 LocalDateTime endTime = base.plusMinutes(duration);
-                if (endTime.isAfter(now)) continue;
+                if (endTime.isAfter(now))
+                    continue;
 
                 log.info("[AUTO-STOP] sessionId={}, streamId={}", session.getId(), stream.getId());
 
