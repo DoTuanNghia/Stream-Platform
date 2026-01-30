@@ -75,7 +75,7 @@ export default function AdminStreams() {
           status: tab,
           page,
           size,
-          sort: "id,desc",
+          sort: "stream.name,asc",
         });
 
         const data = res?.data ?? res;

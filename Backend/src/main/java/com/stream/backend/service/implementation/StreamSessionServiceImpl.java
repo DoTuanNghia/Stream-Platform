@@ -14,7 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-
+import org.springframework.data.jpa.domain.JpaSort;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -100,6 +100,12 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
             if (!isAllowedSortField(field))
                 field = "id";
+
+            if ("stream.name".equals(field)) {
+                // Natural sort: Order by LENGTH(name), then name
+                return JpaSort.unsafe(dir, "LENGTH(s.name)", "s.name");
+            }
+
             return Sort.by(dir, field);
         } catch (Exception e) {
             return Sort.by(Sort.Direction.DESC, "id");
@@ -110,7 +116,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         return "id".equals(field)
                 || "status".equals(field)
                 || "startedAt".equals(field)
-                || "stoppedAt".equals(field);
+                || "stoppedAt".equals(field)
+                || "stream.name".equals(field);
     }
 
     @Override
