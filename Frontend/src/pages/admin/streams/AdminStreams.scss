@@ -100,9 +100,11 @@
 .col-stt {
   width: 64px;
 }
+
 .col-status {
   width: 120px;
 }
+
 .col-time {
   width: 170px;
 }
@@ -128,9 +130,11 @@
   &--active {
     border-color: #14532d;
   }
+
   &--scheduled {
     border-color: #1e3a8a;
   }
+
   &--stopped {
     border-color: #7f1d1d;
   }
@@ -151,4 +155,45 @@
   font-size: 13px;
   font-weight: 600;
   color: #cbd5f5;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  padding: 24px;
+
+  .stat-card {
+    background: #0b1220;
+    border: 1px solid #1f2937;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: transform 0.2s, border-color 0.2s;
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: #3b82f6;
+    }
+
+    h3 {
+      margin: 0 0 10px 0;
+      color: #9ca3af;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      color: #e5e7eb;
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+  }
 }

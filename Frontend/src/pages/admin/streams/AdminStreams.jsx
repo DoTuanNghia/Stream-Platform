@@ -5,7 +5,7 @@ import { adminStreamSessionApi } from "../../../api/admin/streamSession.api";
 const TABS = [
   { key: "SCHEDULED", label: "Luồng SCHEDULED" },
   { key: "ACTIVE", label: "Luồng ACTIVE" },
-  { key: "STOPPED", label: "Luồng STOPPED" },
+  { key: "DASHBOARD", label: "Chi tiết" },
 ];
 
 function pad2(n) {
@@ -23,7 +23,25 @@ function formatLocalDateTime(v) {
   const [HH, mm, ss] = timePart.split(":");
   if (!yyyy || !MM || !dd || !HH || !mm || !ss) return s;
 
-  return `${pad2(HH)}:${pad2(mm)}:${pad2(ss)} ${pad2(dd)}/${pad2(MM)}/${yyyy}`;
+  return `${pad2(HH)}:${pad2(mm)} ${pad2(dd)}/${pad2(MM)}/${yyyy}`;
+}
+
+// Tính thời gian kết thúc dự kiến từ timeStart + duration (phút)
+function calculateEndTime(timeStart, durationMinutes) {
+  if (!timeStart || !durationMinutes) return "-";
+  try {
+    const start = new Date(timeStart);
+    if (isNaN(start.getTime())) return "-";
+    const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+    const yyyy = end.getFullYear();
+    const MM = pad2(end.getMonth() + 1);
+    const dd = pad2(end.getDate());
+    const HH = pad2(end.getHours());
+    const mm = pad2(end.getMinutes());
+    return `${HH}:${mm} ${dd}/${MM}/${yyyy}`;
+  } catch {
+    return "-";
+  }
 }
 
 export default function AdminStreams() {
@@ -39,22 +57,34 @@ export default function AdminStreams() {
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Dashboard stats
+  const [stats, setStats] = useState(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await adminStreamSessionApi.getAll({
-        status: tab,
-        page,
-        size,
-        sort: "id,desc",
-      });
+      if (tab === "DASHBOARD") {
+        const res = await adminStreamSessionApi.getStats();
+        const statsData = res?.stats || res?.data?.stats || {};
+        setStats(statsData);
+        setRows([]);
+        setTotalElements(0);
+        setTotalPages(0);
+      } else {
+        const res = await adminStreamSessionApi.getAll({
+          status: tab,
+          page,
+          size,
+          sort: "id,desc",
+        });
 
-      const data = res?.data ?? res;
-      const list = data?.streamSessions ?? [];
+        const data = res?.data ?? res;
+        const list = data?.streamSessions ?? [];
 
-      setRows(Array.isArray(list) ? list : []);
-      setTotalElements(Number(data?.totalElements ?? 0));
-      setTotalPages(Number(data?.totalPages ?? 0));
+        setRows(Array.isArray(list) ? list : []);
+        setTotalElements(Number(data?.totalElements ?? 0));
+        setTotalPages(Number(data?.totalPages ?? 0));
+      }
     } catch (e) {
       console.error(e);
       setRows([]);
@@ -76,16 +106,41 @@ export default function AdminStreams() {
   }, [tab, page]);
 
   const visibleRows = useMemo(() => {
-    return rows.map((x) => ({
-      ...x,
-      status: String(x?.status ?? "").toUpperCase(),
-      streamKey: x?.stream?.keyStream ?? "n/a",
-      streamName: x?.stream?.name ?? x?.stream?.title ?? "n/a",
-      specText: x?.specification ?? "n/a",
-      startedText: formatLocalDateTime(x?.startedAt),
-      stoppedText: formatLocalDateTime(x?.stoppedAt),
-    }));
-  }, [rows]);
+    if (tab === "DASHBOARD") return [];
+    return rows.map((x) => {
+      const statusUpper = String(x?.status ?? "").toUpperCase();
+      const isScheduled = statusUpper === "SCHEDULED";
+
+      let startedText, stoppedText;
+      if (isScheduled) {
+        // SCHEDULED: dùng timeStart và tính endTime từ duration
+        const timeStart = x?.stream?.timeStart;
+        const duration = x?.stream?.duration;
+        startedText = formatLocalDateTime(timeStart);
+        stoppedText = calculateEndTime(timeStart, duration);
+      } else if (statusUpper === "ACTIVE") {
+        // ACTIVE: dùng startedAt thực tế, tính stopped dự kiến
+        const startedAt = x?.startedAt;
+        const duration = x?.stream?.duration;
+        startedText = formatLocalDateTime(startedAt);
+        stoppedText = calculateEndTime(startedAt, duration);
+      } else {
+        // STOPPED: dùng startedAt và stoppedAt thực tế
+        startedText = formatLocalDateTime(x?.startedAt);
+        stoppedText = formatLocalDateTime(x?.stoppedAt);
+      }
+
+      return {
+        ...x,
+        status: statusUpper,
+        streamKey: x?.stream?.keyStream ?? "n/a",
+        streamName: x?.stream?.name ?? x?.stream?.title ?? "n/a",
+        specText: x?.specification ?? "n/a",
+        startedText,
+        stoppedText,
+      };
+    });
+  }, [rows, tab]);
 
   const pageDisplay = totalPages > 0 ? page + 1 : 0;
 
@@ -104,9 +159,11 @@ export default function AdminStreams() {
       <div className="admin-streams__header">
         <div>
           <h2>Thống kê luồng</h2>
-          <div className="admin-streams__meta">
-            Số lượng: <b>{totalElements}</b>
-          </div>
+          {tab !== "DASHBOARD" && (
+            <div className="admin-streams__meta">
+              Số lượng: <b>{totalElements}</b>
+            </div>
+          )}
         </div>
 
         <div className="admin-streams__tabs">
@@ -126,6 +183,25 @@ export default function AdminStreams() {
       <div className="admin-streams__card">
         {loading ? (
           <div className="admin-streams__loading">Đang tải...</div>
+        ) : tab === "DASHBOARD" ? (
+          <div className="dashboard-stats">
+            <div className="stat-card">
+              <h3>Tổng luồng</h3>
+              <div className="stat-value">{stats?.total ?? 0}</div>
+            </div>
+            <div className="stat-card">
+              <h3>Đã lên lịch</h3>
+              <div className="stat-value">{stats?.scheduled ?? 0}</div>
+            </div>
+            <div className="stat-card">
+              <h3>Đang Live</h3>
+              <div className="stat-value">{stats?.active ?? 0}</div>
+            </div>
+            <div className="stat-card">
+              <h3>Chưa lên lịch</h3>
+              <div className="stat-value">{stats?.none ?? 0}</div>
+            </div>
+          </div>
         ) : (
           <>
             <div className="table-wrapper">
