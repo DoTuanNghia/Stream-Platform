@@ -17,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.JpaSort;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -414,7 +415,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         if (none < 0)
             none = 0;
 
-        Map<String, Object> stats = new java.util.HashMap<>();
+        Map<String, Object> stats = new HashMap<>();
         stats.put("total", totalStreams);
         stats.put("scheduled", scheduled);
         stats.put("active", active);

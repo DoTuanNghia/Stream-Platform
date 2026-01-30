@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import "./AdminStreams.scss";
 import { adminStreamSessionApi } from "../../../api/admin/streamSession.api";
 
@@ -60,7 +60,7 @@ export default function AdminStreams() {
   // Dashboard stats
   const [stats, setStats] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       if (tab === "DASHBOARD") {
@@ -93,7 +93,7 @@ export default function AdminStreams() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tab, page, size]);
 
   // đổi tab => reset về trang 0
   useEffect(() => {
@@ -102,8 +102,7 @@ export default function AdminStreams() {
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, page]);
+  }, [fetchData]);
 
   const visibleRows = useMemo(() => {
     if (tab === "DASHBOARD") return [];
