@@ -152,6 +152,15 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/admin/stats")
+    public ResponseEntity<Map<String, Object>> getAdminStats() {
+        Map<String, Object> stats = streamSessionService.getAdminStats();
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Stats fetched successfully");
+        response.put("stats", stats);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/list")
     public ResponseEntity<Map<String, Object>> getAllStreamSessionsList(
             @RequestParam(required = false) Integer userId,

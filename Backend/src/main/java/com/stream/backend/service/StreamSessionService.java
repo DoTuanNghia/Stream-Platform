@@ -28,4 +28,6 @@ public interface StreamSessionService {
     List<StreamSession> getAllStreamSessionsList(Integer userId, String sort);
 
     void deleteVideoAndResetStream(StreamSession session);
+
+    Map<String, Object> getAdminStats();
 }

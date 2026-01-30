@@ -14,7 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-
+import org.springframework.data.jpa.domain.JpaSort;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -100,6 +100,12 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
             if (!isAllowedSortField(field))
                 field = "id";
+
+            if ("stream.name".equals(field)) {
+                // Natural sort: Order by LENGTH(name), then name
+                return JpaSort.unsafe(dir, "LENGTH(s.name)", "s.name");
+            }
+
             return Sort.by(dir, field);
         } catch (Exception e) {
             return Sort.by(Sort.Direction.DESC, "id");
@@ -110,7 +116,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         return "id".equals(field)
                 || "status".equals(field)
                 || "startedAt".equals(field)
-                || "stoppedAt".equals(field);
+                || "stoppedAt".equals(field)
+                || "stream.name".equals(field);
     }
 
     @Override
@@ -328,13 +335,15 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         String videoList = managedStream.getVideoList();
         if (videoList == null || videoList.isBlank()) {
-            log.info("[DELETE-VIDEO] No video path for streamId={}, sessionId={}", managedStream.getId(), managedSession.getId());
+            log.info("[DELETE-VIDEO] No video path for streamId={}, sessionId={}", managedStream.getId(),
+                    managedSession.getId());
         } else {
             // Xóa file video dựa vào đường dẫn
             String[] videoPaths = videoList.split("\\r?\\n");
             for (String videoPath : videoPaths) {
                 videoPath = videoPath.trim();
-                if (videoPath.isEmpty()) continue;
+                if (videoPath.isEmpty())
+                    continue;
 
                 // Chỉ xóa file local (không phải URL)
                 if (isLocalFile(videoPath)) {
@@ -362,22 +371,24 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         // Lưu streamId và sessionId trước khi xóa để log
         Integer streamId = managedStream.getId();
         Integer sessionId = managedSession.getId();
-        
-        // QUAN TRỌNG: Set streamSession thành null TRƯỚC KHI xóa để tránh lỗi TransientObjectException
+
+        // QUAN TRỌNG: Set streamSession thành null TRƯỚC KHI xóa để tránh lỗi
+        // TransientObjectException
         // Vì Stream có @OneToOne(mappedBy) với StreamSession, cần xóa reference trước
         managedStream.setStreamSession(null);
         streamRepository.save(managedStream);
         streamRepository.flush(); // Flush để đảm bảo reference được xóa trong DB
-        
+
         // Xóa StreamSession bằng ID sau khi đã xóa reference
         streamSessionRepository.deleteById(sessionId);
-        
-        // Xóa videoList, timeStart và duration trong Stream để stream trở về trạng thái NONE hoàn toàn
+
+        // Xóa videoList, timeStart và duration trong Stream để stream trở về trạng thái
+        // NONE hoàn toàn
         // User có thể lên lịch scheduled lại từ đầu
         managedStream.setVideoList(null);
         managedStream.setTimeStart(null);
         managedStream.setDuration(null);
-        
+
         streamRepository.save(managedStream);
 
         log.info("[DELETE-VIDEO] Reset stream to NONE state: streamId={}, sessionId={}", streamId, sessionId);
@@ -389,8 +400,25 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         }
         // Kiểm tra nếu là đường dẫn Windows (C:\...) hoặc Unix (/...)
         // và không phải là URL (http://, https://)
-        return !path.startsWith("http://") 
-            && !path.startsWith("https://")
-            && (path.matches("^[a-zA-Z]:\\\\.*") || path.startsWith("/"));
+        return !path.startsWith("http://")
+                && !path.startsWith("https://")
+                && (path.matches("^[a-zA-Z]:\\\\.*") || path.startsWith("/"));
+    }
+
+    @Override
+    public Map<String, Object> getAdminStats() {
+        long totalStreams = streamRepository.count();
+        long scheduled = streamSessionRepository.countByStatusIgnoreCase("SCHEDULED");
+        long active = streamSessionRepository.countByStatusIgnoreCase("ACTIVE");
+        long none = totalStreams - scheduled - active;
+        if (none < 0)
+            none = 0;
+
+        Map<String, Object> stats = new java.util.HashMap<>();
+        stats.put("total", totalStreams);
+        stats.put("scheduled", scheduled);
+        stats.put("active", active);
+        stats.put("none", none);
+        return stats;
     }
 }
