@@ -95,14 +95,24 @@ public class StreamServiceImpl implements StreamService {
                     .findTopByStreamIdOrderByIdDesc(saved.getId())
                     .orElse(null);
 
-            if (ss == null)
-                ss = new StreamSession();
-            ss.setStream(saved);
-            ss.setStatus("SCHEDULED");
-            ss.setSpecification("Created/Scheduled");
-            ss.setStartedAt(null);
-            ss.setStoppedAt(null);
-            streamSessionRepository.save(ss);
+            try {
+                if (ss == null)
+                    ss = new StreamSession();
+                ss.setStream(saved);
+                ss.setStatus("SCHEDULED");
+                ss.setSpecification("Created/Scheduled");
+                ss.setStartedAt(null);
+                ss.setStoppedAt(null);
+                streamSessionRepository.save(ss);
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                log.warn("[CREATE-STREAM] Race condition detected for stream {}, re-fetching session", saved.getId());
+                ss = streamSessionRepository.findTopByStreamIdOrderByIdDesc(saved.getId()).orElse(null);
+                if (ss != null && !"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
+                    ss.setStatus("SCHEDULED");
+                    ss.setSpecification("Created/Scheduled (race condition resolved)");
+                    streamSessionRepository.save(ss);
+                }
+            }
         }
 
         return saved;
@@ -257,12 +267,35 @@ public class StreamServiceImpl implements StreamService {
             if (ss == null) {
                 // Chưa có session
                 if (isComplete) {
-                    // Stream đủ điều kiện → tạo SCHEDULED
-                    StreamSession newSs = new StreamSession();
-                    newSs.setStream(existing);
-                    newSs.setStatus("SCHEDULED");
-                    newSs.setSpecification("Edited -> scheduled");
-                    streamSessionRepository.save(newSs);
+                    // ✅ FIX RACE CONDITION: Re-fetch session để đảm bảo không có session được tạo
+                    // bởi request khác
+                    ss = streamSessionRepository.findTopByStreamIdOrderByIdDesc(id).orElse(null);
+                    if (ss == null) {
+                        try {
+                            // Stream đủ điều kiện → tạo SCHEDULED
+                            StreamSession newSs = new StreamSession();
+                            newSs.setStream(existing);
+                            newSs.setStatus("SCHEDULED");
+                            newSs.setSpecification("Edited -> scheduled");
+                            streamSessionRepository.save(newSs);
+                        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                            // ✅ Nếu gặp duplicate key → re-fetch và update session
+                            log.warn("[UPDATE-STREAM] Race condition detected for stream {}, re-fetching session", id);
+                            ss = streamSessionRepository.findTopByStreamIdOrderByIdDesc(id).orElse(null);
+                            if (ss != null && !"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
+                                ss.setStatus("SCHEDULED");
+                                ss.setSpecification("Edited -> scheduled (race condition resolved)");
+                                streamSessionRepository.save(ss);
+                            }
+                        }
+                    } else {
+                        // Session đã được tạo bởi request khác → update thay vì tạo mới
+                        if (!"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
+                            ss.setStatus("SCHEDULED");
+                            ss.setSpecification("Edited -> scheduled");
+                            streamSessionRepository.save(ss);
+                        }
+                    }
                 }
                 // Nếu không đủ điều kiện và chưa có session → không làm gì
             } else {

@@ -104,7 +104,6 @@ public class StreamScheduler {
                 try {
                     StreamSession started = streamSessionService.startScheduledSession(session.getId());
 
-                    // ✅ nếu fail thì service đã set ERROR, không transition youtube nữa
                     if (started != null && "ACTIVE".equalsIgnoreCase(started.getStatus())) {
                         try {
                             youTubeLiveService.transitionBroadcast(stream, "live");
