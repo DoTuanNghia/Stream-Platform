@@ -6,6 +6,7 @@ import com.stream.backend.entity.User;
 import com.stream.backend.repository.MemberRepository;
 import com.stream.backend.repository.UserRepository;
 import com.stream.backend.service.MemberService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +17,27 @@ public class MemberServiceImpl implements MemberService {
 
     private final MemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public MemberServiceImpl(MemberRepository memberRepository, UserRepository userRepository) {
+    public MemberServiceImpl(MemberRepository memberRepository, UserRepository userRepository,
+            PasswordEncoder passwordEncoder) {
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     public Member login(String username, String password) {
-        Optional<Member> opt = memberRepository.findByUsernameAndPassword(username, password);
-        return opt.orElse(null);
+        // Tìm user theo username, sau đó so sánh password bằng BCrypt
+        Optional<Member> opt = memberRepository.findByUsername(username);
+        if (opt.isPresent()) {
+            Member member = opt.get();
+            // So sánh password nhập vào với password đã mã hóa trong DB
+            if (passwordEncoder.matches(password, member.getPassword())) {
+                return member;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -49,7 +61,7 @@ public class MemberServiceImpl implements MemberService {
         User u = new User();
         u.setName(fullName); // FE fullName -> DB name
         u.setUsername(username);
-        u.setPassword(password); // đang plaintext theo hệ thống hiện tại
+        u.setPassword(passwordEncoder.encode(password)); // Mã hóa password bằng BCrypt
         u.setRole(finalRole);
 
         return userRepository.save(u);
@@ -65,7 +77,7 @@ public class MemberServiceImpl implements MemberService {
             u.setName(fullName);
         }
         if (password != null && !password.isBlank()) {
-            u.setPassword(password);
+            u.setPassword(passwordEncoder.encode(password)); // Mã hóa password mới bằng BCrypt
         }
         if (role != null) {
             u.setRole(role);

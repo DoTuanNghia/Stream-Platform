@@ -55,4 +55,9 @@ public class Stream {
     @JoinColumn(name = "owner_id", nullable = false)
     @JsonIgnore
     private Member owner;
+
+    // Getter để lấy tên chủ kênh cho JSON response (không expose toàn bộ Member)
+    public String getOwnerName() {
+        return owner != null ? owner.getName() : null;
+    }
 }

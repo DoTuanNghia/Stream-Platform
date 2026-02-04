@@ -134,6 +134,7 @@ export default function AdminStreams() {
         status: statusUpper,
         streamKey: x?.stream?.keyStream ?? "n/a",
         streamName: x?.stream?.name ?? x?.stream?.title ?? "n/a",
+        ownerName: x?.stream?.ownerName ?? "n/a",
         specText: x?.specification ?? "n/a",
         startedText,
         stoppedText,
@@ -209,6 +210,7 @@ export default function AdminStreams() {
                   <tr>
                     <th className="col-stt">STT</th>
                     <th>Stream</th>
+                    <th>Chủ kênh</th>
                     <th>StreamKey</th>
                     <th className="col-status">Status</th>
                     <th className="col-time">Started</th>
@@ -219,7 +221,7 @@ export default function AdminStreams() {
                 <tbody>
                   {visibleRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="admin-streams__empty">
+                      <td colSpan={7} className="admin-streams__empty">
                         Không có dữ liệu
                       </td>
                     </tr>
@@ -228,6 +230,7 @@ export default function AdminStreams() {
                       <tr key={m.id ?? idx}>
                         <td className="col-stt">{page * size + idx + 1}</td>
                         <td className="admin-streams__name">{m.streamName}</td>
+                        <td className="admin-streams__owner">{m.ownerName}</td>
                         <td className="mono">{m.streamKey}</td>
                         <td className="col-status">
                           <span className={"badge badge--" + m.status.toLowerCase()}>
