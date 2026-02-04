@@ -60,6 +60,9 @@ export default function AdminStreams() {
   // Dashboard stats
   const [stats, setStats] = useState(null);
 
+  // Filter by owner
+  const [selectedOwner, setSelectedOwner] = useState(""); // "" = Tất cả
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -95,9 +98,10 @@ export default function AdminStreams() {
     }
   }, [tab, page, size]);
 
-  // đổi tab => reset về trang 0
+  // đổi tab => reset về trang 0 và reset filter
   useEffect(() => {
     setPage(0);
+    setSelectedOwner("");
   }, [tab]);
 
   useEffect(() => {
@@ -142,6 +146,20 @@ export default function AdminStreams() {
     });
   }, [rows, tab]);
 
+  // Lấy danh sách chủ kênh duy nhất
+  const uniqueOwners = useMemo(() => {
+    const owners = visibleRows
+      .map((r) => r.ownerName)
+      .filter((name) => name && name !== "n/a");
+    return [...new Set(owners)].sort();
+  }, [visibleRows]);
+
+  // Lọc theo chủ kênh đã chọn
+  const filteredRows = useMemo(() => {
+    if (!selectedOwner) return visibleRows;
+    return visibleRows.filter((r) => r.ownerName === selectedOwner);
+  }, [visibleRows, selectedOwner]);
+
   const pageDisplay = totalPages > 0 ? page + 1 : 0;
 
   const canFirst = page > 0;
@@ -161,7 +179,19 @@ export default function AdminStreams() {
           <h2>Thống kê luồng</h2>
           {tab !== "DASHBOARD" && (
             <div className="admin-streams__meta">
-              Số lượng: <b>{totalElements}</b>
+              <span>Số lượng: <b>{selectedOwner ? filteredRows.length : totalElements}</b></span>
+              <select
+                className="admin-streams__filter"
+                value={selectedOwner}
+                onChange={(e) => setSelectedOwner(e.target.value)}
+              >
+                <option value="">Tất cả chủ kênh</option>
+                {uniqueOwners.map((owner) => (
+                  <option key={owner} value={owner}>
+                    {owner}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -219,14 +249,14 @@ export default function AdminStreams() {
                 </thead>
 
                 <tbody>
-                  {visibleRows.length === 0 ? (
+                  {filteredRows.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="admin-streams__empty">
                         Không có dữ liệu
                       </td>
                     </tr>
                   ) : (
-                    visibleRows.map((m, idx) => (
+                    filteredRows.map((m, idx) => (
                       <tr key={m.id ?? idx}>
                         <td className="col-stt">{page * size + idx + 1}</td>
                         <td className="admin-streams__name">{m.streamName}</td>

@@ -21,9 +21,33 @@
     margin-top: 6px;
     color: #9ca3af;
     font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 
     b {
       color: #e5e7eb;
+    }
+  }
+
+  &__filter {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #1f2937;
+    background: #0b1220;
+    color: #e5e7eb;
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 160px;
+    transition: border-color 0.2s;
+
+    &:hover {
+      border-color: #374151;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #3b82f6;
     }
   }
 
