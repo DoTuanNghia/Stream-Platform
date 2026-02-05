@@ -134,11 +134,12 @@ public class StreamSessionController {
     @GetMapping("/admin/all")
     public ResponseEntity<Map<String, Object>> adminGetAll(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String ownerName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "id,desc") String sort) {
 
-        var pageData = streamSessionService.adminGetAll(status, page, size, sort);
+        var pageData = streamSessionService.adminGetAll(status, ownerName, page, size, sort);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Admin StreamSessions fetched successfully");
