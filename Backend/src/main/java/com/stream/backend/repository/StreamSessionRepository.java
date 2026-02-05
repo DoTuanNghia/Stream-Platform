@@ -43,8 +43,18 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
          left join ss.stream s
          where (:status is null or lower(ss.status) = lower(:status))
       """)
-
   Page<StreamSession> findAllByOptionalStatus(@Param("status") String status, Pageable pageable);
+
+  @Query("""
+         select ss
+         from StreamSession ss
+         left join ss.stream s
+         left join s.owner u
+         where (:status is null or lower(ss.status) = lower(:status))
+           and (:ownerName is null or u.name = :ownerName)
+      """)
+  Page<StreamSession> findAllByOptionalStatusAndOwnerName(@Param("status") String status,
+      @Param("ownerName") String ownerName, Pageable pageable);
 
   @Query("""
          select ss

@@ -25,6 +25,8 @@ public interface StreamSessionService {
 
     Page<StreamSession> adminGetAll(String status, int page, int size, String sort);
 
+    Page<StreamSession> adminGetAll(String status, String ownerName, int page, int size, String sort);
+
     List<StreamSession> getAllStreamSessionsList(Integer userId, String sort);
 
     void deleteVideoAndResetStream(StreamSession session);

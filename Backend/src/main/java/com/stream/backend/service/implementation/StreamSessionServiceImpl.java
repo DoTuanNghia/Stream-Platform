@@ -278,6 +278,14 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         return streamSessionRepository.findAllByOptionalStatus(s, pageable);
     }
 
+    @Override
+    public Page<StreamSession> adminGetAll(String status, String ownerName, int page, int size, String sort) {
+        Pageable pageable = buildPageable(page, size, sort);
+        String s = (status == null || status.isBlank()) ? null : status.trim();
+        String o = (ownerName == null || ownerName.isBlank()) ? null : ownerName.trim();
+        return streamSessionRepository.findAllByOptionalStatusAndOwnerName(s, o, pageable);
+    }
+
     private void markError(StreamSession session, String msg) {
         session.setStatus("ERROR");
         session.setLastError(msg);

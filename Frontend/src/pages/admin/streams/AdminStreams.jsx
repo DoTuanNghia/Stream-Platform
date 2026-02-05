@@ -62,6 +62,19 @@ export default function AdminStreams() {
 
   // Filter by owner
   const [selectedOwner, setSelectedOwner] = useState(""); // "" = Tất cả
+  const [allOwners, setAllOwners] = useState([]); // Danh sách tất cả chủ kênh
+
+  // đổi tab => reset về trang 0 và reset filter
+  useEffect(() => {
+    setPage(0);
+    setSelectedOwner("");
+    setAllOwners([]); // Reset owners khi đổi tab
+  }, [tab]);
+
+  // Khi đổi filter owner => reset về trang 0
+  useEffect(() => {
+    setPage(0);
+  }, [selectedOwner]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -74,12 +87,17 @@ export default function AdminStreams() {
         setTotalElements(0);
         setTotalPages(0);
       } else {
-        const res = await adminStreamSessionApi.getAll({
+        const params = {
           status: tab,
           page,
           size,
           sort: "stream.name,asc",
-        });
+        };
+        // Chỉ gửi ownerName nếu có giá trị (không rỗng)
+        if (selectedOwner) {
+          params.ownerName = selectedOwner;
+        }
+        const res = await adminStreamSessionApi.getAll(params);
 
         const data = res?.data ?? res;
         const list = data?.streamSessions ?? [];
@@ -96,14 +114,9 @@ export default function AdminStreams() {
     } finally {
       setLoading(false);
     }
-  }, [tab, page, size]);
+  }, [tab, page, size, selectedOwner]);
 
-  // đổi tab => reset về trang 0 và reset filter
-  useEffect(() => {
-    setPage(0);
-    setSelectedOwner("");
-  }, [tab]);
-
+  // Trigger fetchData khi dependencies thay đổi
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -146,19 +159,23 @@ export default function AdminStreams() {
     });
   }, [rows, tab]);
 
-  // Lấy danh sách chủ kênh duy nhất
-  const uniqueOwners = useMemo(() => {
-    const owners = visibleRows
-      .map((r) => r.ownerName)
-      .filter((name) => name && name !== "n/a");
-    return [...new Set(owners)].sort();
-  }, [visibleRows]);
-
-  // Lọc theo chủ kênh đã chọn
-  const filteredRows = useMemo(() => {
-    if (!selectedOwner) return visibleRows;
-    return visibleRows.filter((r) => r.ownerName === selectedOwner);
+  // Cập nhật danh sách chủ kênh khi không filter (để dropdown hiển thị tất cả owners)
+  useEffect(() => {
+    if (!selectedOwner && visibleRows.length > 0) {
+      const owners = visibleRows
+        .map((r) => r.ownerName)
+        .filter((name) => name && name !== "n/a");
+      const uniqueList = [...new Set(owners)].sort();
+      // Merge với danh sách cũ để không mất owner từ các trang khác
+      setAllOwners((prev) => {
+        const merged = [...new Set([...prev, ...uniqueList])];
+        return merged.sort();
+      });
+    }
   }, [visibleRows, selectedOwner]);
+
+  // Bây giờ dùng visibleRows trực tiếp vì backend đã filter
+  const displayRows = visibleRows;
 
   const pageDisplay = totalPages > 0 ? page + 1 : 0;
 
@@ -179,14 +196,14 @@ export default function AdminStreams() {
           <h2>Thống kê luồng</h2>
           {tab !== "DASHBOARD" && (
             <div className="admin-streams__meta">
-              <span>Số lượng: <b>{selectedOwner ? filteredRows.length : totalElements}</b></span>
+              <span>Số lượng: <b>{totalElements}</b></span>
               <select
                 className="admin-streams__filter"
                 value={selectedOwner}
                 onChange={(e) => setSelectedOwner(e.target.value)}
               >
                 <option value="">Tất cả chủ kênh</option>
-                {uniqueOwners.map((owner) => (
+                {allOwners.map((owner) => (
                   <option key={owner} value={owner}>
                     {owner}
                   </option>
@@ -249,14 +266,14 @@ export default function AdminStreams() {
                 </thead>
 
                 <tbody>
-                  {filteredRows.length === 0 ? (
+                  {displayRows.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="admin-streams__empty">
                         Không có dữ liệu
                       </td>
                     </tr>
                   ) : (
-                    filteredRows.map((m, idx) => (
+                    displayRows.map((m, idx) => (
                       <tr key={m.id ?? idx}>
                         <td className="col-stt">{page * size + idx + 1}</td>
                         <td className="admin-streams__name">{m.streamName}</td>
