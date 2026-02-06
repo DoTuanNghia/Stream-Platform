@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
 import AddStreamsBulk from "./addStream/addStreamsBulk.jsx";
+import DeleteStreamsBulk from "./deleteStream/deleteStreamsBulk.jsx";
 import axiosClient from "../../../api/axiosClient.js";
 
 const formatTime = (iso) => {
@@ -37,6 +38,7 @@ const Stream = () => {
   const [streamStatusMap, setStreamStatusMap] = useState({});
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [isDeleteBulkOpen, setIsDeleteBulkOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [editingStream, setEditingStream] = useState(null);
@@ -248,6 +250,24 @@ const Stream = () => {
   const closeBulkModal = () => {
     setIsBulkOpen(false);
   };
+  const openDeleteBulkModal = () => {
+    setIsDeleteBulkOpen(true);
+  };
+  const closeDeleteBulkModal = () => {
+    setIsDeleteBulkOpen(false);
+  };
+
+  const handleDeleteBulk = async (ids) => {
+    try {
+      // Xóa từng stream theo ID
+      await Promise.all(ids.map((id) => axiosClient.delete(`/streams/${id}`)));
+      setIsDeleteBulkOpen(false);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      alert("Xóa luồng thất bại. Vui lòng thử lại.");
+    }
+  };
 
   return (
     <>
@@ -268,6 +288,9 @@ const Stream = () => {
               </button>
               <button className="btn btn--info btn--lg" onClick={openBulkModal}>
                 Thêm Nhiều Luồng
+              </button>
+              <button className="btn btn--danger btn--lg" onClick={openDeleteBulkModal}>
+                Xoá Nhiều
               </button>
             </div>
           </div>
@@ -363,6 +386,12 @@ const Stream = () => {
 
       <AddStream isOpen={isAddOpen} onClose={closeAddModal} onSave={handleSaveStream} initialData={editingStream} />
       <AddStreamsBulk isOpen={isBulkOpen} onClose={closeBulkModal} onSave={handleSaveStreamsBulk} />
+      <DeleteStreamsBulk
+        isOpen={isDeleteBulkOpen}
+        onClose={closeDeleteBulkModal}
+        onDelete={handleDeleteBulk}
+        streams={streams}
+      />
     </>
   );
 };
