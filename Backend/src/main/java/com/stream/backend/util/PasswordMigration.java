@@ -32,7 +32,7 @@ public class PasswordMigration implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
 
     // Flag để bật/tắt migration (đặt false sau khi đã migrate xong)
-    private static final boolean ENABLE_MIGRATION = false;
+    private static final boolean ENABLE_MIGRATION = true;
 
     public PasswordMigration(MemberRepository memberRepository, PasswordEncoder passwordEncoder) {
         this.memberRepository = memberRepository;
