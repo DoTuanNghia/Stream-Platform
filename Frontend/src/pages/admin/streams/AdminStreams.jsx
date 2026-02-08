@@ -47,15 +47,10 @@ function calculateEndTime(timeStart, durationMinutes) {
 export default function AdminStreams() {
   const [tab, setTab] = useState("ACTIVE");
 
-  // paging
-  const [page, setPage] = useState(0);
-  const size = 15; // ✅ 15 dòng / trang
-
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [totalElements, setTotalElements] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
 
   // Dashboard stats
   const [stats, setStats] = useState(null);
@@ -64,17 +59,11 @@ export default function AdminStreams() {
   const [selectedOwner, setSelectedOwner] = useState(""); // "" = Tất cả
   const [allOwners, setAllOwners] = useState([]); // Danh sách tất cả chủ kênh
 
-  // đổi tab => reset về trang 0 và reset filter
+  // đổi tab => reset filter
   useEffect(() => {
-    setPage(0);
     setSelectedOwner("");
     setAllOwners([]); // Reset owners khi đổi tab
   }, [tab]);
-
-  // Khi đổi filter owner => reset về trang 0
-  useEffect(() => {
-    setPage(0);
-  }, [selectedOwner]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -89,8 +78,8 @@ export default function AdminStreams() {
       } else {
         const params = {
           status: tab,
-          page,
-          size,
+          page: 0,
+          size: 9999, // ✅ Tải tất cả dữ liệu cho scroll
           sort: "stream.name,asc",
         };
         // Chỉ gửi ownerName nếu có giá trị (không rỗng)
@@ -104,17 +93,15 @@ export default function AdminStreams() {
 
         setRows(Array.isArray(list) ? list : []);
         setTotalElements(Number(data?.totalElements ?? 0));
-        setTotalPages(Number(data?.totalPages ?? 0));
       }
     } catch (e) {
       console.error(e);
       setRows([]);
       setTotalElements(0);
-      setTotalPages(0);
     } finally {
       setLoading(false);
     }
-  }, [tab, page, size, selectedOwner]);
+  }, [tab, selectedOwner]);
 
   // Trigger fetchData khi dependencies thay đổi
   useEffect(() => {
@@ -176,18 +163,6 @@ export default function AdminStreams() {
 
   // Bây giờ dùng visibleRows trực tiếp vì backend đã filter
   const displayRows = visibleRows;
-
-  const pageDisplay = totalPages > 0 ? page + 1 : 0;
-
-  const canFirst = page > 0;
-  const canPrev = page > 0;
-  const canNext = totalPages > 0 && page < totalPages - 1;
-  const canLast = totalPages > 0 && page < totalPages - 1;
-
-  const goFirst = () => canFirst && setPage(0);
-  const goPrev = () => canPrev && setPage((p) => p - 1);
-  const goNext = () => canNext && setPage((p) => p + 1);
-  const goLast = () => canLast && setPage(totalPages - 1);
 
   return (
     <div className="admin-streams">
@@ -251,7 +226,7 @@ export default function AdminStreams() {
           </div>
         ) : (
           <>
-            <div className="table-wrapper">
+            <div className="table-wrapper table-wrapper--scroll">
               <table className="table table--small">
                 <thead>
                   <tr>
@@ -275,7 +250,7 @@ export default function AdminStreams() {
                   ) : (
                     displayRows.map((m, idx) => (
                       <tr key={m.id ?? idx}>
-                        <td className="col-stt">{page * size + idx + 1}</td>
+                        <td className="col-stt">{idx + 1}</td>
                         <td className="admin-streams__name">{m.streamName}</td>
                         <td className="admin-streams__owner">{m.ownerName}</td>
                         <td className="mono">{m.streamKey}</td>
@@ -291,49 +266,6 @@ export default function AdminStreams() {
                   )}
                 </tbody>
               </table>
-            </div>
-
-            {/* ✅ Pagination: First / Prev / Next / Last */}
-            <div className="admin-streams__pager">
-              <button
-                className="btn btn--ghost"
-                onClick={goFirst}
-                disabled={!canFirst}
-                type="button"
-              >
-                First
-              </button>
-
-              <button
-                className="btn btn--ghost"
-                onClick={goPrev}
-                disabled={!canPrev}
-                type="button"
-              >
-                Prev
-              </button>
-
-              <div className="admin-streams__pagerText">
-                Trang <b>{pageDisplay}</b> / <b>{totalPages}</b>
-              </div>
-
-              <button
-                className="btn btn--ghost"
-                onClick={goNext}
-                disabled={!canNext}
-                type="button"
-              >
-                Next
-              </button>
-
-              <button
-                className="btn btn--ghost"
-                onClick={goLast}
-                disabled={!canLast}
-                type="button"
-              >
-                Last
-              </button>
             </div>
           </>
         )}
