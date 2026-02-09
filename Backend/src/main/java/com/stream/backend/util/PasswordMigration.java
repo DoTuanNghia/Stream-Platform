@@ -59,8 +59,6 @@ public class PasswordMigration implements CommandLineRunner {
             String currentPassword = member.getPassword();
 
             // Kiểm tra xem password đã được mã hóa BCrypt chưa
-            // BCrypt hash luôn bắt đầu bằng "$2a$", "$2b$" hoặc "$2y$" và có độ dài 60 ký
-            // tự
             if (isBCryptHash(currentPassword)) {
                 logger.info("User '{}' (id={}) - Password đã được mã hóa, BỎ QUA",
                         member.getUsername(), member.getId());
@@ -84,13 +82,6 @@ public class PasswordMigration implements CommandLineRunner {
         logger.info("- Đã migrate: {}", migratedCount);
         logger.info("- Bỏ qua (đã mã hóa): {}", skippedCount);
         logger.info("========================================");
-
-        if (migratedCount > 0) {
-            logger.warn("⚠️  QUAN TRỌNG: Hãy TẮT migration bằng cách:");
-            logger.warn("   1. Đặt ENABLE_MIGRATION = false, HOẶC");
-            logger.warn("   2. Xóa @Component annotation, HOẶC");
-            logger.warn("   3. Xóa file PasswordMigration.java");
-        }
     }
 
     /**

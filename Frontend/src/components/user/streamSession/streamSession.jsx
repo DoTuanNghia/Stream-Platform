@@ -129,7 +129,7 @@ const StreamSession = () => {
 
     const timer = setInterval(() => {
       fetchSessions();
-    }, 7000);
+    }, 30000); // 30 giây - đồng bộ với backend stats update
 
     return () => clearInterval(timer);
   }, []);
@@ -162,7 +162,7 @@ const StreamSession = () => {
                 totalText
               ) : (
                 <>
-                  Reload ngay hoặc tự động sau <strong>7</strong> giây
+                  Reload ngay hoặc tự động sau <strong>30</strong> giây
                 </>
               )}
             </span>
