@@ -159,20 +159,25 @@ export default function AdminStreams() {
     });
   }, [rows, tab]);
 
-  // Cập nhật danh sách chủ kênh khi không filter (để dropdown hiển thị tất cả owners)
+  // Fetch danh sách chủ kênh từ backend theo status của tab hiện tại
   useEffect(() => {
-    if (!selectedOwner && visibleRows.length > 0) {
-      const owners = visibleRows
-        .map((r) => r.ownerName)
-        .filter((name) => name && name !== "n/a");
-      const uniqueList = [...new Set(owners)].sort();
-      // Merge với danh sách cũ để không mất owner từ các trang khác
-      setAllOwners((prev) => {
-        const merged = [...new Set([...prev, ...uniqueList])];
-        return merged.sort();
-      });
-    }
-  }, [visibleRows, selectedOwner]);
+    const fetchOwners = async () => {
+      if (tab === "DASHBOARD") {
+        setAllOwners([]);
+        return;
+      }
+      try {
+        const res = await adminStreamSessionApi.getOwners(tab);
+        const owners = res?.data?.owners ?? res?.owners ?? [];
+        setAllOwners(Array.isArray(owners) ? owners : []);
+      } catch (e) {
+        console.error("Failed to fetch owners:", e);
+        setAllOwners([]);
+      }
+    };
+    fetchOwners();
+  }, [tab]);
+
 
   // Bây giờ dùng visibleRows trực tiếp vì backend đã filter
   const displayRows = visibleRows;

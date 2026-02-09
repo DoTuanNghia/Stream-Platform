@@ -177,4 +177,16 @@ public class StreamSessionController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/admin/owners")
+    public ResponseEntity<Map<String, Object>> getOwnersByStatus(
+            @RequestParam(required = false) String status) {
+
+        List<String> owners = streamSessionService.getOwnersByStatus(status);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Owners fetched successfully");
+        response.put("owners", owners);
+        return ResponseEntity.ok(response);
+    }
+
 }

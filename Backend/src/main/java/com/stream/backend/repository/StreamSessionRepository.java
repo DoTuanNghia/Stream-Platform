@@ -65,4 +65,13 @@ public interface StreamSessionRepository extends JpaRepository<StreamSession, In
            and (:userId is null or u.id = :userId)
       """)
   List<StreamSession> findActiveOrScheduledByUserIdList(@Param("userId") Integer userId, Sort sort);
+
+  @Query("""
+        select distinct u.name
+        from StreamSession ss
+        join ss.stream s
+        join s.owner u
+        where (:status is null or lower(ss.status) = lower(:status))
+      """)
+  List<String> findDistinctOwnerNamesByStatus(@Param("status") String status);
 }
