@@ -61,7 +61,8 @@ public class FfmpegServiceImpl implements FfmpegService {
         // 1) thử copy trước (nếu bật)
         if (preferCopy) {
             boolean started = startCopyStream(videoPath, fullRtmp, streamKey);
-            if (started) return;
+            if (started)
+                return;
         }
 
         // 2) fallback encode (nếu encode fail -> throw)
@@ -70,7 +71,8 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     /**
      * Chạy FFmpeg remux với -c copy (nhẹ nhất).
-     * Return true nếu process start OK; nếu fail thì return false để fallback encode.
+     * Return true nếu process start OK; nếu fail thì return false để fallback
+     * encode.
      */
     private boolean startCopyStream(String videoPath, String fullRtmp, String streamKey) {
         try {
@@ -258,6 +260,10 @@ public class FfmpegServiceImpl implements FfmpegService {
         BufferedReader br = null;
         InputStream is = null;
 
+        // Throttle log và stats update mỗi 30 giây
+        final long LOG_INTERVAL_MS = 30_000;
+        long lastLogTime = 0;
+
         try {
             // Lấy InputStream từ process
             is = process.getInputStream();
@@ -269,9 +275,8 @@ public class FfmpegServiceImpl implements FfmpegService {
             // Sử dụng UTF-8 encoding để đảm bảo đọc đúng trên Windows
             // Sử dụng buffer size lớn hơn để tránh block trên Windows
             br = new BufferedReader(
-                new InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8),
-                8192
-            );
+                    new InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8),
+                    8192);
 
             String line;
             long lastReadTime = System.currentTimeMillis();
@@ -291,7 +296,7 @@ public class FfmpegServiceImpl implements FfmpegService {
                         // Nếu không có dữ liệu, đợi một chút rồi kiểm tra lại
                         // Tránh busy-wait nhưng vẫn responsive
                         Thread.sleep(50);
-                        
+
                         // Nếu process đã chết và không có dữ liệu trong 1 giây, thoát
                         if (!process.isAlive() && (System.currentTimeMillis() - lastReadTime) > 1000) {
                             break;
@@ -299,7 +304,8 @@ public class FfmpegServiceImpl implements FfmpegService {
                         continue;
                     }
 
-                    System.out.println("[FFMPEG] " + line);
+                    // Không log mỗi dòng để tránh treo CMD
+                    // Chỉ log khi có lỗi sớm (ở trên) hoặc progress (ở dưới)
 
                     // Detect lỗi sớm trong vài giây đầu
                     if (!earlyErrorDetected && (System.currentTimeMillis() - startTime) < 3000) {
@@ -319,19 +325,30 @@ public class FfmpegServiceImpl implements FfmpegService {
                         }
                     }
 
-                    // Parse STATS line
+                    // Parse STATS line (luôn parse để có data mới nhất, nhưng chỉ log/update mỗi
+                    // 30s)
                     if (line.contains("frame=") && line.contains("fps=")) {
                         parseStatsLineInto(stat, line);
                         stat.updatedAt = System.currentTimeMillis();
-                        statMap.put(streamKey, cloneStat(stat));
+                        // Chỉ update statMap mỗi 30 giây
+                        long now = System.currentTimeMillis();
+                        if (now - lastLogTime >= LOG_INTERVAL_MS) {
+                            statMap.put(streamKey, cloneStat(stat));
+                            System.out.println("[FFMPEG] " + streamKey + " | frame=" + stat.frame
+                                    + " fps=" + String.format("%.1f", stat.fps)
+                                    + " speed=" + stat.speed + " time=" + stat.time);
+                            lastLogTime = now;
+                        }
                         continue;
                     }
 
                     // Parse PROGRESS: key=value
-                    if (!line.contains("=")) continue;
+                    if (!line.contains("="))
+                        continue;
 
                     String[] kv = line.split("=", 2);
-                    if (kv.length != 2) continue;
+                    if (kv.length != 2)
+                        continue;
 
                     String key = kv[0].trim();
                     String val = kv[1].trim();
@@ -352,7 +369,15 @@ public class FfmpegServiceImpl implements FfmpegService {
                                 stat.fps = stat.frame / (stat.outTimeMs / 1000.0);
                             }
                             stat.updatedAt = System.currentTimeMillis();
-                            statMap.put(streamKey, cloneStat(stat));
+                            // Chỉ update statMap mỗi 30 giây
+                            long now = System.currentTimeMillis();
+                            if (now - lastLogTime >= LOG_INTERVAL_MS) {
+                                statMap.put(streamKey, cloneStat(stat));
+                                System.out.println("[FFMPEG] " + streamKey + " | frame=" + stat.frame
+                                        + " fps=" + String.format("%.1f", stat.fps != null ? stat.fps : 0.0)
+                                        + " speed=" + stat.speed + " time=" + stat.time);
+                                lastLogTime = now;
+                            }
                         }
                     }
                 } catch (InterruptedException e) {
@@ -401,25 +426,32 @@ public class FfmpegServiceImpl implements FfmpegService {
     private static void parseStatsLineInto(FfmpegStat stat, String line) {
         try {
             Long frame = extractLongAfter(line, "frame=");
-            if (frame != null) stat.frame = frame;
+            if (frame != null)
+                stat.frame = frame;
 
             Double fps = extractDoubleAfter(line, "fps=");
-            if (fps != null) stat.fps = fps;
+            if (fps != null)
+                stat.fps = fps;
 
             Double q = extractDoubleAfter(line, "q=");
-            if (q != null) stat.q = q;
+            if (q != null)
+                stat.q = q;
 
             String bitrate = extractTokenAfter(line, "bitrate=");
-            if (bitrate != null) stat.bitrate = bitrate;
+            if (bitrate != null)
+                stat.bitrate = bitrate;
 
             String speed = extractTokenAfter(line, "speed=");
-            if (speed != null) stat.speed = speed;
+            if (speed != null)
+                stat.speed = speed;
 
             String time = extractTokenAfter(line, "time=");
-            if (time != null) stat.time = time;
+            if (time != null)
+                stat.time = time;
 
             String size = extractTokenAfter(line, "size=");
-            if (size != null) stat.size = size;
+            if (size != null)
+                stat.size = size;
 
         } catch (Exception ignored) {
         }
@@ -427,23 +459,35 @@ public class FfmpegServiceImpl implements FfmpegService {
 
     private static String extractTokenAfter(String line, String key) {
         int i = line.indexOf(key);
-        if (i < 0) return null;
+        if (i < 0)
+            return null;
         String tail = line.substring(i + key.length()).trim();
-        if (tail.isEmpty()) return null;
+        if (tail.isEmpty())
+            return null;
         int sp = tail.indexOf(' ');
         return (sp < 0) ? tail : tail.substring(0, sp).trim();
     }
 
     private static Long extractLongAfter(String line, String key) {
         String t = extractTokenAfter(line, key);
-        if (t == null) return null;
-        try { return Long.parseLong(t.trim()); } catch (Exception e) { return null; }
+        if (t == null)
+            return null;
+        try {
+            return Long.parseLong(t.trim());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static Double extractDoubleAfter(String line, String key) {
         String t = extractTokenAfter(line, key);
-        if (t == null) return null;
-        try { return Double.parseDouble(t.trim()); } catch (Exception e) { return null; }
+        if (t == null)
+            return null;
+        try {
+            return Double.parseDouble(t.trim());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static FfmpegStat cloneStat(FfmpegStat s) {
@@ -461,18 +505,22 @@ public class FfmpegServiceImpl implements FfmpegService {
     }
 
     private static String humanBytes(long bytes) {
-        if (bytes < 1024) return bytes + "B";
+        if (bytes < 1024)
+            return bytes + "B";
         double kib = bytes / 1024.0;
-        if (kib < 1024) return String.format(java.util.Locale.US, "%.0fKiB", kib);
+        if (kib < 1024)
+            return String.format(java.util.Locale.US, "%.0fKiB", kib);
         double mib = kib / 1024.0;
-        if (mib < 1024) return String.format(java.util.Locale.US, "%.1fMiB", mib);
+        if (mib < 1024)
+            return String.format(java.util.Locale.US, "%.1fMiB", mib);
         double gib = mib / 1024.0;
         return String.format(java.util.Locale.US, "%.2fGiB", gib);
     }
 
     @Override
     public void stopStream(String streamKey) {
-        if (streamKey == null || streamKey.isBlank()) return;
+        if (streamKey == null || streamKey.isBlank())
+            return;
 
         Process process = processMap.get(streamKey); // Lấy nhưng chưa remove ngay
         if (process == null) {
@@ -534,15 +582,24 @@ public class FfmpegServiceImpl implements FfmpegService {
     }
 
     private static long parseLong(String v) {
-        try { return Long.parseLong(v.trim()); } catch (Exception e) { return 0L; }
+        try {
+            return Long.parseLong(v.trim());
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     private static double parseDouble(String v) {
-        try { return Double.parseDouble(v.trim()); } catch (Exception e) { return 0.0; }
+        try {
+            return Double.parseDouble(v.trim());
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     private static boolean isUrl(String s) {
-        if (s == null) return false;
+        if (s == null)
+            return false;
         String x = s.trim().toLowerCase();
         return x.startsWith("http://") || x.startsWith("https://");
     }
