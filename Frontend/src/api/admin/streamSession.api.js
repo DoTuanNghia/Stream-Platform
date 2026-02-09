@@ -5,4 +5,6 @@ export const adminStreamSessionApi = {
   getAll: (params) =>
     axiosClient.get("/stream-sessions/admin/all", { params }),
   getStats: () => axiosClient.get("/stream-sessions/admin/stats"),
+  getOwners: (status) =>
+    axiosClient.get("/stream-sessions/admin/owners", { params: { status } }),
 };

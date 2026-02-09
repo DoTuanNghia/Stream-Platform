@@ -430,4 +430,12 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         stats.put("none", none);
         return stats;
     }
+
+    @Override
+    public List<String> getOwnersByStatus(String status) {
+        String s = (status == null || status.isBlank()) ? null : status.trim();
+        List<String> owners = streamSessionRepository.findDistinctOwnerNamesByStatus(s);
+        owners.sort(String.CASE_INSENSITIVE_ORDER);
+        return owners;
+    }
 }

@@ -32,4 +32,6 @@ public interface StreamSessionService {
     void deleteVideoAndResetStream(StreamSession session);
 
     Map<String, Object> getAdminStats();
+
+    List<String> getOwnersByStatus(String status);
 }
