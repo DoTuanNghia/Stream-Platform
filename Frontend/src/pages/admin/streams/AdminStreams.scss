@@ -63,7 +63,41 @@
     border-radius: 10px;
     padding: 0;
   }
+}
 
+.table-wrapper--scroll {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+
+  // Sticky header khi scroll
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #0b1220;
+  }
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #0b1220;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+  }
+}
+
+.admin-streams {
   &__loading {
     padding: 12px;
     color: #9ca3af;
