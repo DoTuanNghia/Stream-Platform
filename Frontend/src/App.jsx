@@ -17,6 +17,17 @@ export default function App() {
     setIsLoggedIn(false); // ✅ QUAN TRỌNG
   };
 
+  // Xác định trang redirect dựa theo role
+  const getRedirectPath = () => {
+    const raw = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser");
+    if (!raw) return "/home";
+    try {
+      const user = JSON.parse(raw);
+      const role = user?.role;
+      return (role === "ADMIN" || role === "ROLE_ADMIN") ? "/admin" : "/home";
+    } catch { return "/home"; }
+  };
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
@@ -25,7 +36,7 @@ export default function App() {
         path="/login"
         element={
           isLoggedIn ? (
-            <Navigate to="/home" replace />
+            <Navigate to={getRedirectPath()} replace />
           ) : (
             <Login onLoginSuccess={() => setIsLoggedIn(true)} />
           )
