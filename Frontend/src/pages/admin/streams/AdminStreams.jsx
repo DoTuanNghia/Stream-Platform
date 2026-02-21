@@ -133,12 +133,19 @@ export default function AdminStreams() {
         stoppedText = formatLocalDateTime(x?.stoppedAt);
       }
 
+      // Lấy tên video từ videoList, bỏ đường dẫn và đuôi .mp4
+      const rawVideoList = x?.stream?.videoList ?? "";
+      const videoBaseName = rawVideoList
+        ? rawVideoList.split(/[\\/]/).pop().replace(/\.mp4$/i, "")
+        : "-";
+
       return {
         ...x,
         status: statusUpper,
         streamKey: x?.stream?.keyStream ?? "n/a",
         streamName: x?.stream?.name ?? x?.stream?.title ?? "n/a",
         ownerName: x?.stream?.ownerName ?? "n/a",
+        videoName: videoBaseName,
         specText: x?.specification ?? "n/a",
         startedText,
         stoppedText,
@@ -239,6 +246,7 @@ export default function AdminStreams() {
                     <th>Stream</th>
                     <th>Chủ kênh</th>
                     <th>StreamKey</th>
+                    <th>Video</th>
                     <th className="col-status">Status</th>
                     <th className="col-time">Started</th>
                     <th className="col-time">Stopped</th>
@@ -248,7 +256,7 @@ export default function AdminStreams() {
                 <tbody>
                   {displayRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="admin-streams__empty">
+                      <td colSpan={8} className="admin-streams__empty">
                         Không có dữ liệu
                       </td>
                     </tr>
@@ -259,6 +267,7 @@ export default function AdminStreams() {
                         <td className="admin-streams__name">{m.streamName}</td>
                         <td className="admin-streams__owner">{m.ownerName}</td>
                         <td className="mono">{m.streamKey}</td>
+                        <td>{m.videoName}</td>
                         <td className="col-status">
                           <span className={"badge badge--" + m.status.toLowerCase()}>
                             {m.status}

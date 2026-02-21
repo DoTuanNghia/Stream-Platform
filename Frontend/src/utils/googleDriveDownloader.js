@@ -46,18 +46,28 @@ export const fetchDownloadedFiles = async () => {
 };
 
 /**
- * Tự động tạo tên file theo số thứ tự (1.mp4, 2.mp4, ...)
+ * Tự động tạo tên file theo format ddmmyy_xx.mp4
+ * dd = ngày, mm = tháng, yy = 2 số cuối năm, xx = số thứ tự từ 01
  * Dựa trên danh sách files đã có trên VPS
  * @returns {Promise<string>}
  */
 export const generateAutoFileName = async () => {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const datePrefix = `${dd}${mm}${yy}`;
+
     const files = await fetchDownloadedFiles();
 
-    // Lấy tất cả các số từ tên file hiện có (dạng X.mp4)
+    // Lấy tất cả số thứ tự từ file có dạng ddmmyy_XX.mp4 (cùng ngày)
+    const pattern = new RegExp(`^${datePrefix}_(\\d+)\\.mp4$`, 'i');
     const usedNumbers = files
         .map(f => f.fileName)
-        .filter(name => /^\d+\.mp4$/i.test(name))
-        .map(name => parseInt(name.replace('.mp4', ''), 10))
+        .map(name => {
+            const match = name.match(pattern);
+            return match ? parseInt(match[1], 10) : NaN;
+        })
         .filter(n => !isNaN(n));
 
     // Tìm số nhỏ nhất chưa được dùng
@@ -66,7 +76,8 @@ export const generateAutoFileName = async () => {
         nextNumber++;
     }
 
-    return `${nextNumber}.mp4`;
+    const xx = String(nextNumber).padStart(2, '0');
+    return `${datePrefix}_${xx}.mp4`;
 };
 
 /**
