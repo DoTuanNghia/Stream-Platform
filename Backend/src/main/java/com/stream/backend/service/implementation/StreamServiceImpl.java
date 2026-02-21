@@ -225,9 +225,9 @@ public class StreamServiceImpl implements StreamService {
             existing.setTimeStart(null);
             existing.setDuration(null);
 
-            // Reset session về SCHEDULED
-            ss.setStatus("SCHEDULED");
-            ss.setSpecification("Edited -> rescheduled (reset from STOPPED)");
+            // ✅ FIX: Reset session về NONE (vì đã xóa hết dữ liệu, stream chưa đủ điều kiện SCHEDULED)
+            ss.setStatus("NONE");
+            ss.setSpecification("Edited -> reset from STOPPED (awaiting new schedule)");
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
             ss.setLastError(null);
