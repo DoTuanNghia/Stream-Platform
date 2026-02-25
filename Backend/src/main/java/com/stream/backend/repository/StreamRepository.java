@@ -12,10 +12,6 @@ import com.stream.backend.entity.Stream;
 
 public interface StreamRepository extends JpaRepository<Stream, Integer> {
 
-    Stream save(Stream stream);
-
-    void delete(Stream stream);
-
     Page<Stream> findByOwnerId(Integer ownerId, Pageable pageable);
 
     List<Stream> findByOwnerId(Integer ownerId);
@@ -27,13 +23,13 @@ public interface StreamRepository extends JpaRepository<Stream, Integer> {
      * Dùng để tạo danh sách bảo vệ khi dọn dẹp video mồ côi
      */
     @Query("""
-            SELECT s.videoList FROM Stream s
-            WHERE s.videoList IS NOT NULL AND s.videoList <> ''
-            AND EXISTS (
-                SELECT 1 FROM StreamSession ss
-                WHERE ss.stream = s
-                AND LOWER(ss.status) IN ('scheduled', 'active')
-            )
-        """)
+                SELECT s.videoList FROM Stream s
+                WHERE s.videoList IS NOT NULL AND s.videoList <> ''
+                AND EXISTS (
+                    SELECT 1 FROM StreamSession ss
+                    WHERE ss.stream = s
+                    AND LOWER(ss.status) IN ('scheduled', 'active')
+                )
+            """)
     List<String> findAllActiveVideoLists();
 }
