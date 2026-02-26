@@ -134,3 +134,45 @@ button[aria-disabled="true"] {
 .card>.table-wrapper.table-wrapper--vscroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ERROR badge */
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+
+  &--error {
+    background: #dc2626;
+    color: #fff;
+    animation: pulse-error 2s ease-in-out infinite;
+
+    &:hover {
+      background: #ef4444;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+      transform: translateY(-0.5px);
+    }
+
+    &:active {
+      transform: translateY(0.5px);
+      filter: brightness(0.9);
+    }
+  }
+}
+
+@keyframes pulse-error {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}

@@ -13,7 +13,7 @@ public interface StreamSessionService {
 
     Page<StreamSession> getStreamSessionsByStreamId(Integer streamId, int page, int size, String sort);
 
-    Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds);
+    Map<Integer, Map<String, String>> getStatusMapByStreamIds(List<Integer> streamIds);
 
     StreamSession stopStreamSession(StreamSession streamSession);
 

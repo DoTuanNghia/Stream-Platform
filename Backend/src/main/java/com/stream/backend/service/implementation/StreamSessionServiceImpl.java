@@ -61,8 +61,8 @@ public class StreamSessionServiceImpl implements StreamSessionService {
     }
 
     @Override
-    public Map<Integer, String> getStatusMapByStreamIds(List<Integer> streamIds) {
-        Map<Integer, String> map = new LinkedHashMap<>();
+    public Map<Integer, Map<String, String>> getStatusMapByStreamIds(List<Integer> streamIds) {
+        Map<Integer, Map<String, String>> map = new LinkedHashMap<>();
         if (streamIds == null || streamIds.isEmpty())
             return map;
 
@@ -75,7 +75,10 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                     .orElse(null);
 
             if (ss != null && ss.getStatus() != null) {
-                map.put(streamId, ss.getStatus().toUpperCase());
+                Map<String, String> info = new LinkedHashMap<>();
+                info.put("status", ss.getStatus().toUpperCase());
+                info.put("lastError", ss.getLastError());
+                map.put(streamId, info);
             }
         }
         return map;
