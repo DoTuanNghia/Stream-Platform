@@ -253,9 +253,8 @@
     <script>
         const AUTH_TOKEN = 's3cureT0k3n#2024!';
 
-        // Khi test local, dùng trực tiếp localhost:5001
-        // Khi deploy VPS, đổi thành '/dlapi'
-        const API_BASE = 'http://localhost:5001';
+        // Dùng /dlapi — Vite proxy (dev) hoặc Nginx (VPS) sẽ forward tới Flask
+        const API_BASE = '/dlapi';
 
         const ENDPOINTS = {
             download: `${API_BASE}/download`,
