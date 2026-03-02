@@ -1,5 +1,5 @@
 // src/utils/googleDriveDownloader.js
-// Utility để tải video từ Google Drive về VPS
+// Utility để tải video từ Google Drive / Local / NAS về VPS
 
 const DOWNLOAD_API_BASE = '/dlapi';
 const AUTH_TOKEN = 's3cureT0k3n#2024!';
@@ -18,6 +18,19 @@ export const isGoogleDriveUrl = (url) => {
         trimmed.startsWith('https://drive.google.com') ||
         trimmed.startsWith('http://drive.google.com')
     );
+};
+
+/**
+ * Tự động phát hiện loại file dựa trên URL/path
+ * @param {string} input - URL hoặc đường dẫn file
+ * @returns {'drive' | 'local'}
+ */
+export const detectFileType = (input) => {
+    if (!input || typeof input !== 'string') return 'local';
+    if (input.includes('drive.google.com') || input.includes('docs.google.com')) {
+        return 'drive';
+    }
+    return 'local';
 };
 
 /**
@@ -113,9 +126,10 @@ export const downloadFromGoogleDrive = async (driveUrl, fileName) => {
             };
         }
 
-        // Gọi API download
+        // Dùng fileType dynamic thay vì hardcode 'drive'
+        const fileType = detectFileType(driveUrl);
         const payload = {
-            file_type: 'drive',
+            file_type: fileType,
             file_id_or_url: driveUrl.trim(),
             file_name: finalFileName
         };
@@ -170,6 +184,7 @@ export const processGoogleDriveDownload = async (driveUrl) => {
 
 export default {
     isGoogleDriveUrl,
+    detectFileType,
     fetchDownloadedFiles,
     generateAutoFileName,
     checkFileExists,
