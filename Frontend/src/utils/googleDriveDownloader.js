@@ -34,6 +34,33 @@ export const detectFileType = (input) => {
 };
 
 /**
+ * Kiểm tra xem input có phải là đường dẫn NAS/network (UNC path) không
+ * VD: \\192.168.1.100\share\file.mp4, \\NAS\folder\video.mp4
+ * @param {string} input
+ * @returns {boolean}
+ */
+export const isNasOrNetworkPath = (input) => {
+    if (!input || typeof input !== 'string') return false;
+    const trimmed = input.trim();
+    // UNC path: \\server\share hoặc //server/share
+    // Cũng hỗ trợ trường hợp user chỉ gõ 1 backslash: \Nas_tcg\...
+    if (trimmed.startsWith('//')) return true;
+    // Kiểm tra bắt đầu bằng \\ hoặc \  (backslash + tên server)
+    if (/^\\\\/.test(trimmed)) return true;
+    if (/^\\[a-zA-Z0-9_]/.test(trimmed)) return true;
+    return false;
+};
+
+/**
+ * Kiểm tra xem input có cần download qua API không (Drive URL hoặc NAS path)
+ * @param {string} input
+ * @returns {boolean}
+ */
+export const isDownloadableInput = (input) => {
+    return isGoogleDriveUrl(input) || isNasOrNetworkPath(input);
+};
+
+/**
  * Lấy danh sách files đã tải trên VPS để xác định số thứ tự tiếp theo
  * @returns {Promise<Array>}
  */
@@ -182,12 +209,31 @@ export const processGoogleDriveDownload = async (driveUrl) => {
     return result;
 };
 
+/**
+ * Hàm chính (generic): Xử lý download từ bất kỳ nguồn nào (Drive / NAS / Local)
+ * Tự động phát hiện loại file và gọi API tương ứng
+ * @param {string} inputUrl - URL Google Drive hoặc đường dẫn NAS/local
+ * @returns {Promise<{success: boolean, fileName: string, message: string}>}
+ */
+export const processDownload = async (inputUrl) => {
+    // 1. Tự động tạo tên file
+    const autoFileName = await generateAutoFileName();
+
+    // 2. Bắt đầu download (detectFileType sẽ tự xác định drive/local)
+    const result = await downloadFromGoogleDrive(inputUrl, autoFileName);
+
+    return result;
+};
+
 export default {
     isGoogleDriveUrl,
+    isNasOrNetworkPath,
+    isDownloadableInput,
     detectFileType,
     fetchDownloadedFiles,
     generateAutoFileName,
     checkFileExists,
     downloadFromGoogleDrive,
-    processGoogleDriveDownload
+    processGoogleDriveDownload,
+    processDownload
 };

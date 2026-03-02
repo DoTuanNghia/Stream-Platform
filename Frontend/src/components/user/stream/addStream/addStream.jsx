@@ -2,8 +2,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./addStream.scss";
 import {
-  isGoogleDriveUrl,
-  processGoogleDriveDownload,
+  isDownloadableInput,
+  processDownload,
 } from "../../../../utils/googleDriveDownloader.js";
 
 const emptyForm = {
@@ -190,7 +190,8 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       return;
     }
 
-    const rawInput = (form.videoList || "").trim();
+    // Bỏ dấu ngoặc kép ở 2 đầu nếu user paste path có kèm ""
+    const rawInput = (form.videoList || "").trim().replace(/^"|"$/g, "").trim();
 
     if (!rawInput) {
       await onSave({ ...form, videoList: "" });
@@ -198,13 +199,13 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       return;
     }
 
-    if (isGoogleDriveUrl(rawInput)) {
+    if (isDownloadableInput(rawInput)) {
       setIsDownloading(true);
       setDownloadStatus("Đang chuẩn bị download...");
 
       try {
-        setDownloadStatus("Đang download video từ Google Drive...");
-        const downloadResult = await processGoogleDriveDownload(rawInput);
+        setDownloadStatus("Đang download video...");
+        const downloadResult = await processDownload(rawInput);
 
         if (downloadResult.success) {
           const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
@@ -234,7 +235,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           return;
         }
       } catch (error) {
-        console.error("Error during Google Drive download:", error);
+        console.error("Error during download:", error);
         setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
         setIsDownloading(false);
         return;
@@ -293,13 +294,13 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           </div>
 
           <div className="modal__field">
-            <label>Tên video / Link Google Drive</label>
+            <label>Tên video</label>
             <input
               type="text"
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder='Tên video (vd: "video1.mp4") hoặc URL Google Drive'
+              placeholder='Tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4)'
               disabled={isDownloading}
             />
           </div>
