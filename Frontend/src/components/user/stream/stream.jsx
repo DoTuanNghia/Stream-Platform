@@ -380,7 +380,7 @@ const Stream = () => {
                             className="btn btn--ghost"
                             onClick={() => openEditModal(st, status)}
                           >
-                            {status === "ACTIVE" ? "Sửa Duration" : "Sửa"}
+                            Sửa
                           </button>
 
                           <button
