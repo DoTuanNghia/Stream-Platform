@@ -260,8 +260,8 @@ const Stream = () => {
   const openBulkModal = () => {
     setIsBulkOpen(true);
   };
-  const openEditModal = (st) => {
-    setEditingStream(st);
+  const openEditModal = (st, status) => {
+    setEditingStream({ ...st, _liveStatus: status });
     setIsAddOpen(true);
   };
   const closeAddModal = () => {
@@ -377,15 +377,10 @@ const Stream = () => {
                             Xóa
                           </button>
                           <button
-                            className={`btn btn--ghost ${status === "ACTIVE" ? "btn--disabled" : ""}`}
-                            onClick={() => {
-                              if (status === "ACTIVE") return;
-                              openEditModal(st);
-                            }}
-                            aria-disabled={status === "ACTIVE"}
-                            title={status === "ACTIVE" ? "Không thể sửa khi luồng đang ACTIVE" : ""}
+                            className="btn btn--ghost"
+                            onClick={() => openEditModal(st, status)}
                           >
-                            Sửa
+                            {status === "ACTIVE" ? "Sửa Duration" : "Sửa"}
                           </button>
 
                           <button

@@ -113,6 +113,9 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
   if (!isOpen) return null;
 
+  // Đang sửa luồng ACTIVE → chỉ cho sửa duration
+  const isLiveEdit = initialData && String(initialData._liveStatus || "").toUpperCase() === "ACTIVE";
+
   const handleOverlayMouseDown = (e) => {
     overlayMouseDownOnBackdropRef.current = e.target === e.currentTarget;
   };
@@ -264,7 +267,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onMouseUp={handleOverlayMouseUp}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span className="modal__title">{initialData ? "Sửa Stream" : "Tạo Stream"}</span>
+          <span className="modal__title">{isLiveEdit ? "Sửa Duration (đang Live)" : initialData ? "Sửa Stream" : "Tạo Stream"}</span>
           <button className="modal__close" onClick={onClose} disabled={isDownloading}>×</button>
         </div>
 
@@ -277,7 +280,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.note}
               onChange={handleChange}
               placeholder="Nhập tên luồng"
-              disabled={isDownloading}
+              disabled={isDownloading || isLiveEdit}
             />
           </div>
 
@@ -289,7 +292,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.keyLive}
               onChange={handleChange}
               placeholder="Nhập key live"
-              disabled={isDownloading}
+              disabled={isDownloading || isLiveEdit}
             />
           </div>
 
@@ -301,7 +304,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.videoList}
               onChange={handleChange}
               placeholder='Tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4)'
-              disabled={isDownloading}
+              disabled={isDownloading || isLiveEdit}
             />
           </div>
 
@@ -320,7 +323,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 placeholder="--:--"
                 inputMode="numeric"
                 autoComplete="off"
-                disabled={isDownloading}
+                disabled={isDownloading || isLiveEdit}
                 title="Gõ 4 số HHMM. Ví dụ: 2122 => 21:22."
               />
 
@@ -329,7 +332,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 name="startDate"
                 value={form.startDate}
                 onChange={handleChange}
-                disabled={isDownloading}
+                disabled={isDownloading || isLiveEdit}
               />
             </div>
           </div>
