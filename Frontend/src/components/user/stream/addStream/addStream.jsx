@@ -2,8 +2,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./addStream.scss";
 import {
-  isGoogleDriveUrl,
-  processGoogleDriveDownload,
+  isDownloadableInput,
+  processDownload,
 } from "../../../../utils/googleDriveDownloader.js";
 
 const emptyForm = {
@@ -113,6 +113,9 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
   if (!isOpen) return null;
 
+  // Đang sửa luồng ACTIVE → chỉ cho sửa duration
+  const isLiveEdit = initialData && String(initialData._liveStatus || "").toUpperCase() === "ACTIVE";
+
   const handleOverlayMouseDown = (e) => {
     overlayMouseDownOnBackdropRef.current = e.target === e.currentTarget;
   };
@@ -190,7 +193,8 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       return;
     }
 
-    const rawInput = (form.videoList || "").trim();
+    // Bỏ dấu ngoặc kép ở 2 đầu nếu user paste path có kèm ""
+    const rawInput = (form.videoList || "").trim().replace(/^"|"$/g, "").trim();
 
     if (!rawInput) {
       await onSave({ ...form, videoList: "" });
@@ -198,13 +202,13 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       return;
     }
 
-    if (isGoogleDriveUrl(rawInput)) {
+    if (isDownloadableInput(rawInput)) {
       setIsDownloading(true);
       setDownloadStatus("Đang chuẩn bị download...");
 
       try {
-        setDownloadStatus("Đang download video từ Google Drive...");
-        const downloadResult = await processGoogleDriveDownload(rawInput);
+        setDownloadStatus("Đang download video...");
+        const downloadResult = await processDownload(rawInput);
 
         if (downloadResult.success) {
           const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
@@ -234,7 +238,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           return;
         }
       } catch (error) {
-        console.error("Error during Google Drive download:", error);
+        console.error("Error during download:", error);
         setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
         setIsDownloading(false);
         return;
@@ -263,7 +267,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onMouseUp={handleOverlayMouseUp}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span className="modal__title">{initialData ? "Sửa Stream" : "Tạo Stream"}</span>
+          <span className="modal__title">{isLiveEdit ? "Sửa Duration (đang Live)" : initialData ? "Sửa Stream" : "Tạo Stream"}</span>
           <button className="modal__close" onClick={onClose} disabled={isDownloading}>×</button>
         </div>
 
@@ -276,7 +280,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.note}
               onChange={handleChange}
               placeholder="Nhập tên luồng"
-              disabled={isDownloading}
+              disabled={isDownloading || isLiveEdit}
             />
           </div>
 
@@ -288,19 +292,19 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.keyLive}
               onChange={handleChange}
               placeholder="Nhập key live"
-              disabled={isDownloading}
+              disabled={isDownloading || isLiveEdit}
             />
           </div>
 
           <div className="modal__field">
-            <label>Tên video / Link Google Drive</label>
+            <label>Tên video</label>
             <input
               type="text"
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder='Tên video (vd: "video1.mp4") hoặc URL Google Drive'
-              disabled={isDownloading}
+              placeholder='Tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4)'
+              disabled={isDownloading || isLiveEdit}
             />
           </div>
 
@@ -319,7 +323,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 placeholder="--:--"
                 inputMode="numeric"
                 autoComplete="off"
-                disabled={isDownloading}
+                disabled={isDownloading || isLiveEdit}
                 title="Gõ 4 số HHMM. Ví dụ: 2122 => 21:22."
               />
 
@@ -328,7 +332,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 name="startDate"
                 value={form.startDate}
                 onChange={handleChange}
-                disabled={isDownloading}
+                disabled={isDownloading || isLiveEdit}
               />
             </div>
           </div>

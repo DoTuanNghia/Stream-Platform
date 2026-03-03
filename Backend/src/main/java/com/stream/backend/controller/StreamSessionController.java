@@ -62,7 +62,7 @@ public class StreamSessionController {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        Map<Integer, String> map = streamSessionService.getStatusMapByStreamIds(ids);
+        Map<Integer, Map<String, String>> map = streamSessionService.getStatusMapByStreamIds(ids);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Status map fetched successfully");

@@ -211,7 +211,7 @@ public class StreamServiceImpl implements StreamService {
 
         // ✅ Nếu stream đang STOPPED hoặc ERROR → chỉ giữ name và keyStream, reset các
         // trường khác
-        if (isStoppedOrError) {
+        if (isStoppedOrError && ss != null) {
             log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, resetting all fields except name and keyStream", id);
 
             // Xóa video cũ nếu có
@@ -225,9 +225,8 @@ public class StreamServiceImpl implements StreamService {
             existing.setTimeStart(null);
             existing.setDuration(null);
 
-            // Reset session về SCHEDULED
-            ss.setStatus("SCHEDULED");
-            ss.setSpecification("Edited -> rescheduled (reset from STOPPED)");
+            ss.setStatus("NONE");
+            ss.setSpecification("Edited -> reset from STOPPED (awaiting new schedule)");
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
             ss.setLastError(null);

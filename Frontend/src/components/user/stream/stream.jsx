@@ -33,9 +33,22 @@ const collator = new Intl.Collator("vi", {
   sensitivity: "base",
 });
 
+const translateError = (code) => {
+  if (!code) return "Lỗi không xác định.";
+  const c = code.trim();
+  if (c === "STREAM_KEY_EMPTY") return "Chưa nhập Key Live.";
+  if (c === "Video path is empty.") return "Chưa có video.";
+  if (c.startsWith("INPUT_NOT_FOUND")) return "File video không tồn tại.";
+  if (c.startsWith("FFMPEG_START_FAILED")) return "FFmpeg không khởi động được.";
+  if (c === "Failed to start FFmpeg ENCODE") return "Không thể mã hóa video.";
+  if (c.startsWith("FFMPEG_START_CHECK_ERROR")) return "Lỗi kiểm tra FFmpeg.";
+  return `Lỗi: ${c}`;
+};
+
 const Stream = () => {
   const [streams, setStreams] = useState([]);
   const [streamStatusMap, setStreamStatusMap] = useState({});
+  const [streamErrorMap, setStreamErrorMap] = useState({});
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [isDeleteBulkOpen, setIsDeleteBulkOpen] = useState(false);
@@ -51,7 +64,7 @@ const Stream = () => {
 
   const fetchStatusForList = async (list) => {
     const ids = list.map((s) => s?.id).filter(Boolean);
-    if (ids.length === 0) return {};
+    if (ids.length === 0) return { statusMap: {}, errorMap: {} };
 
     const statusRes = await axiosClient.get(`/stream-sessions/status-map`, {
       params: { streamIds: ids.join(",") },
@@ -59,13 +72,20 @@ const Stream = () => {
 
     const rawMap = statusRes.statusMap || {};
     const normalized = {};
+    const errors = {};
     list.forEach((st) => {
       const sid = st?.id;
       if (!sid) return;
 
       const fromBe = rawMap[sid];
-      if (fromBe) normalized[sid] = String(fromBe).toUpperCase();
-      else {
+      if (fromBe && typeof fromBe === "object") {
+        // Cấu trúc mới: { status, lastError }
+        normalized[sid] = String(fromBe.status || "").toUpperCase();
+        if (fromBe.lastError) errors[sid] = fromBe.lastError;
+      } else if (fromBe) {
+        // Fallback cấu trúc cũ (string)
+        normalized[sid] = String(fromBe).toUpperCase();
+      } else {
         // ✅ Kiểm tra đủ các thuộc tính cần thiết để stream được SCHEDULED
         const hasVideoList = st?.videoList && st.videoList.trim() !== "";
         const hasTimeStart = st?.timeStart;
@@ -81,7 +101,7 @@ const Stream = () => {
       }
     });
 
-    return normalized;
+    return { statusMap: normalized, errorMap: errors };
   };
 
   const fetchAll = async () => {
@@ -107,8 +127,9 @@ const Stream = () => {
       setStreams(sorted);
       setTotalElements(Number(streamRes.totalElements ?? sorted.length) || sorted.length);
 
-      const mapNew = await fetchStatusForList(sorted);
+      const { statusMap: mapNew, errorMap: errNew } = await fetchStatusForList(sorted);
       setStreamStatusMap(mapNew);
+      setStreamErrorMap(errNew);
 
       // scroll về top (khi refresh)
       if (wrapperRef.current) wrapperRef.current.scrollTop = 0;
@@ -239,8 +260,8 @@ const Stream = () => {
   const openBulkModal = () => {
     setIsBulkOpen(true);
   };
-  const openEditModal = (st) => {
-    setEditingStream(st);
+  const openEditModal = (st, status) => {
+    setEditingStream({ ...st, _liveStatus: status });
     setIsAddOpen(true);
   };
   const closeAddModal = () => {
@@ -324,6 +345,7 @@ const Stream = () => {
               ) : (
                 streams.map((st, index) => {
                   const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
+                  const lastError = streamErrorMap[st.id] || null;
 
                   // ✅ Chỉ enable nút Stream Ngay khi trạng thái là SCHEDULED
                   // Disable cho ACTIVE và NONE
@@ -336,22 +358,29 @@ const Stream = () => {
                       <td>{formatTime(st.timeStart)}</td>
                       <td>{st.duration === -1 ? "∞" : st.duration != null ? `${st.duration} phút` : "none"}</td>
                       <td className="table__mono">{st.keyStream}</td>
-                      <td>{status}</td>
+                      <td>
+                        {status === "ERROR" ? (
+                          <span
+                            className="status-badge status-badge--error"
+                            onClick={() => alert(translateError(lastError))}
+                            title="Bấm để xem chi tiết lỗi"
+                          >
+                            ERROR
+                          </span>
+                        ) : (
+                          status
+                        )}
+                      </td>
                       <td>
                         <div className="table__actions">
                           <button className="btn btn--danger" onClick={() => handleDelete(st.id)}>
                             Xóa
                           </button>
                           <button
-                            className={`btn btn--ghost ${status === "ACTIVE" ? "btn--disabled" : ""}`}
-                            onClick={() => {
-                              if (status === "ACTIVE") return;
-                              openEditModal(st);
-                            }}
-                            aria-disabled={status === "ACTIVE"}
-                            title={status === "ACTIVE" ? "Không thể sửa khi luồng đang ACTIVE" : ""}
+                            className="btn btn--ghost"
+                            onClick={() => openEditModal(st, status)}
                           >
-                            Sửa
+                            {status === "ACTIVE" ? "Sửa Duration" : "Sửa"}
                           </button>
 
                           <button

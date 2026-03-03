@@ -80,14 +80,12 @@
             border: 1px solid #f5c6cb;
         }
 
-        /* Optional info type (your code uses 'info' in one place) */
         .message.info {
             background-color: #d1ecf1;
             color: #0c5460;
             border: 1px solid #bee5eb;
         }
 
-        /* Section for Downloaded Files */
         .downloaded-files {
             margin-top: 40px;
         }
@@ -155,7 +153,6 @@
             transition: width 0.4s;
         }
 
-        /* Checklist and Refresh Buttons */
         #checklistButton {
             background-color: #17a2b8;
             margin-top: 10px;
@@ -174,7 +171,6 @@
             background-color: #0056b3;
         }
 
-        /* Section for Disk Space Information */
         .disk-space {
             margin-top: 40px;
         }
@@ -221,26 +217,17 @@
         <h1>Video Download Tool</h1>
 
         <form id="downloadForm">
-            <!-- Optional: chỉ hiển thị thông tin host hiện tại (không dùng để build URL nữa) -->
             <div class="form-group">
                 <label for="vpsIp">Current Host (auto):</label>
                 <input type="text" id="vpsIp" placeholder="auto" />
-
             </div>
 
             <div class="form-group">
-                <label for="fileType">Select File Type:</label>
-                <select id="fileType" required>
-                    <option value="drive" selected>Google Drive</option>
-                </select>
+                <label for="fileIdOrUrl">Nhập đường dẫn file (Drive URL / Local / NAS):</label>
+                <input type="text" id="fileIdOrUrl" placeholder="Drive URL hoặc đường dẫn local/NAS" required />
             </div>
 
-            <div class="form-group">
-                <label for="fileIdOrUrl">Enter File ID or URL:</label>
-                <input type="text" id="fileIdOrUrl" placeholder="Drive File ID" required />
-            </div>
-
-            <div class="form-group">
+            <div class="form-group" id="fileNameGroup">
                 <label for="fileName">File Name:</label>
                 <input type="text" id="fileName" placeholder="e.g., my_video" required />
             </div>
@@ -264,13 +251,11 @@
     </div>
 
     <script>
-        // Token xác thực (giữ nguyên như bạn)
         const AUTH_TOKEN = 's3cureT0k3n#2024!';
 
-        // Base API path (HTTPS-safe via Nginx proxy)
+        // Dùng /dlapi — Vite proxy (dev) hoặc Nginx (VPS) sẽ forward tới Flask
         const API_BASE = '/dlapi';
 
-        // Endpoints
         const ENDPOINTS = {
             download: `${API_BASE}/download`,
             listFiles: `${API_BASE}/list_files`,
@@ -278,8 +263,9 @@
             disk: `${API_BASE}/disk_space`
         };
 
-        const fileTypeSelect = document.getElementById('fileType');
         const fileNameInput = document.getElementById('fileName');
+        const fileNameGroup = document.getElementById('fileNameGroup');
+        const fileIdOrUrlInput = document.getElementById('fileIdOrUrl');
         const downloadForm = document.getElementById('downloadForm');
         const messageDiv = document.getElementById('message');
         const downloadedFilesList = document.getElementById('downloadedFilesList');
@@ -288,52 +274,44 @@
         const diskSpaceList = document.getElementById('diskSpaceList');
         const vpsIpInput = document.getElementById('vpsIp');
 
-        // Array để lưu trữ các file đang được xử lý tại phiên hiện tại
         const ongoingDownloads = [];
 
-        // Hiển thị host hiện tại cho dễ nhìn (optional)
         window.addEventListener('load', () => {
-            vpsIpInput.value = '204.12.220.122';
+            vpsIpInput.value = window.location.hostname || 'localhost';
         });
 
-        // Hiển thị hoặc ẩn trường File Name dựa trên loại file
-        fileTypeSelect.addEventListener('change', () => {
-            if (fileTypeSelect.value === 'drive') {
-                fileNameInput.required = true;
-            } else {
-                fileNameInput.required = false;
+        function detectFileType(input) {
+            if (input.includes('drive.google.com') || input.includes('docs.google.com')) {
+                return 'drive';
             }
-        });
+            return 'local';
+        }
 
-        // Xử lý khi form được submit
         downloadForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
-            const fileType = fileTypeSelect.value;
-            const fileIdOrUrl = document.getElementById('fileIdOrUrl').value.trim();
+            const fileIdOrUrl = fileIdOrUrlInput.value.trim();
+            const fileType = detectFileType(fileIdOrUrl);
             let fileName = fileNameInput.value.trim();
 
-            // Chuẩn bị tên file và đảm bảo đuôi .mp4
             if (!fileName.toLowerCase().endsWith('.mp4')) {
                 fileName += '.mp4';
             }
 
             const finalFileName = fileName || extractFileNameFromUrl(fileIdOrUrl);
 
-            // Kiểm tra xem tên file đã tồn tại trong thư mục lưu trữ trên VPS chưa
             const fileExists = await checkFileExists(finalFileName);
             if (fileExists) {
                 showMessage(`File "${finalFileName}" already exists in the download folder.`, 'error');
                 return;
             }
 
-            // Thêm file vào danh sách với trạng thái "Chờ"
             const downloadItem = addDownloadItem(finalFileName, 'Chờ');
             ongoingDownloads.push(downloadItem);
 
-            // Chuẩn bị payload yêu cầu
+            // Dùng fileType dynamic thay vì hardcode 'drive'
             const payload = {
-                file_type: 'drive',
+                file_type: fileType,
                 file_id_or_url: fileIdOrUrl,
                 file_name: fileName
             };
@@ -345,8 +323,6 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        // Nếu Flask bắt buộc token cho /download thì bật dòng dưới:
-                        // 'Authorization': AUTH_TOKEN
                     },
                     body: JSON.stringify(payload)
                 });
@@ -378,7 +354,6 @@
             try { return await response.json(); } catch { return {}; }
         }
 
-        // Hàm kiểm tra file tồn tại
         async function checkFileExists(fileName) {
             try {
                 const response = await fetch(ENDPOINTS.listFiles, {

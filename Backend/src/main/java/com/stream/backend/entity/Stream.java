@@ -40,9 +40,11 @@ public class Stream {
     @Column(name = "yt_stream_id")
     private String youtubeStreamId;
 
+    @Builder.Default
     @Column(name = "auto_start")
     private Boolean autoStart = true;
 
+    @Builder.Default
     @Column(name = "auto_stop")
     private Boolean autoStop = true;
 

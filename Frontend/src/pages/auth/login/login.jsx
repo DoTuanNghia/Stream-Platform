@@ -54,7 +54,11 @@ const Login = ({ onLoginSuccess }) => {
       }
 
       onLoginSuccess();          // 🔥 DÒNG QUAN TRỌNG
-      navigate("/home", { replace: true });
+
+      // Admin → /admin, User → /home
+      const userRole = safeUser.role;
+      const isAdmin = userRole === "ADMIN" || userRole === "ROLE_ADMIN";
+      navigate(isAdmin ? "/admin" : "/home", { replace: true });
 
     } catch (err) {
       console.error("LOGIN ERROR:", err);

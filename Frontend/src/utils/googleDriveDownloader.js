@@ -1,5 +1,5 @@
 // src/utils/googleDriveDownloader.js
-// Utility để tải video từ Google Drive về VPS
+// Utility để tải video từ Google Drive / Local / NAS về VPS
 
 const DOWNLOAD_API_BASE = '/dlapi';
 const AUTH_TOKEN = 's3cureT0k3n#2024!';
@@ -18,6 +18,46 @@ export const isGoogleDriveUrl = (url) => {
         trimmed.startsWith('https://drive.google.com') ||
         trimmed.startsWith('http://drive.google.com')
     );
+};
+
+/**
+ * Tự động phát hiện loại file dựa trên URL/path
+ * @param {string} input - URL hoặc đường dẫn file
+ * @returns {'drive' | 'local'}
+ */
+export const detectFileType = (input) => {
+    if (!input || typeof input !== 'string') return 'local';
+    if (input.includes('drive.google.com') || input.includes('docs.google.com')) {
+        return 'drive';
+    }
+    return 'local';
+};
+
+/**
+ * Kiểm tra xem input có phải là đường dẫn NAS/network (UNC path) không
+ * VD: \\192.168.1.100\share\file.mp4, \\NAS\folder\video.mp4
+ * @param {string} input
+ * @returns {boolean}
+ */
+export const isNasOrNetworkPath = (input) => {
+    if (!input || typeof input !== 'string') return false;
+    const trimmed = input.trim();
+    // UNC path: \\server\share hoặc //server/share
+    // Cũng hỗ trợ trường hợp user chỉ gõ 1 backslash: \Nas_tcg\...
+    if (trimmed.startsWith('//')) return true;
+    // Kiểm tra bắt đầu bằng \\ hoặc \  (backslash + tên server)
+    if (/^\\\\/.test(trimmed)) return true;
+    if (/^\\[a-zA-Z0-9_]/.test(trimmed)) return true;
+    return false;
+};
+
+/**
+ * Kiểm tra xem input có cần download qua API không (Drive URL hoặc NAS path)
+ * @param {string} input
+ * @returns {boolean}
+ */
+export const isDownloadableInput = (input) => {
+    return isGoogleDriveUrl(input) || isNasOrNetworkPath(input);
 };
 
 /**
@@ -46,18 +86,28 @@ export const fetchDownloadedFiles = async () => {
 };
 
 /**
- * Tự động tạo tên file theo số thứ tự (1.mp4, 2.mp4, ...)
+ * Tự động tạo tên file theo format ddmmyy_xx.mp4
+ * dd = ngày, mm = tháng, yy = 2 số cuối năm, xx = số thứ tự từ 01
  * Dựa trên danh sách files đã có trên VPS
  * @returns {Promise<string>}
  */
 export const generateAutoFileName = async () => {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const datePrefix = `${dd}${mm}${yy}`;
+
     const files = await fetchDownloadedFiles();
 
-    // Lấy tất cả các số từ tên file hiện có (dạng X.mp4)
+    // Lấy tất cả số thứ tự từ file có dạng ddmmyy_XX.mp4 (cùng ngày)
+    const pattern = new RegExp(`^${datePrefix}_(\\d+)\\.mp4$`, 'i');
     const usedNumbers = files
         .map(f => f.fileName)
-        .filter(name => /^\d+\.mp4$/i.test(name))
-        .map(name => parseInt(name.replace('.mp4', ''), 10))
+        .map(name => {
+            const match = name.match(pattern);
+            return match ? parseInt(match[1], 10) : NaN;
+        })
         .filter(n => !isNaN(n));
 
     // Tìm số nhỏ nhất chưa được dùng
@@ -66,7 +116,8 @@ export const generateAutoFileName = async () => {
         nextNumber++;
     }
 
-    return `${nextNumber}.mp4`;
+    const xx = String(nextNumber).padStart(2, '0');
+    return `${datePrefix}_${xx}.mp4`;
 };
 
 /**
@@ -102,9 +153,10 @@ export const downloadFromGoogleDrive = async (driveUrl, fileName) => {
             };
         }
 
-        // Gọi API download
+        // Dùng fileType dynamic thay vì hardcode 'drive'
+        const fileType = detectFileType(driveUrl);
         const payload = {
-            file_type: 'drive',
+            file_type: fileType,
             file_id_or_url: driveUrl.trim(),
             file_name: finalFileName
         };
@@ -157,11 +209,31 @@ export const processGoogleDriveDownload = async (driveUrl) => {
     return result;
 };
 
+/**
+ * Hàm chính (generic): Xử lý download từ bất kỳ nguồn nào (Drive / NAS / Local)
+ * Tự động phát hiện loại file và gọi API tương ứng
+ * @param {string} inputUrl - URL Google Drive hoặc đường dẫn NAS/local
+ * @returns {Promise<{success: boolean, fileName: string, message: string}>}
+ */
+export const processDownload = async (inputUrl) => {
+    // 1. Tự động tạo tên file
+    const autoFileName = await generateAutoFileName();
+
+    // 2. Bắt đầu download (detectFileType sẽ tự xác định drive/local)
+    const result = await downloadFromGoogleDrive(inputUrl, autoFileName);
+
+    return result;
+};
+
 export default {
     isGoogleDriveUrl,
+    isNasOrNetworkPath,
+    isDownloadableInput,
+    detectFileType,
     fetchDownloadedFiles,
     generateAutoFileName,
     checkFileExists,
     downloadFromGoogleDrive,
-    processGoogleDriveDownload
+    processGoogleDriveDownload,
+    processDownload
 };
