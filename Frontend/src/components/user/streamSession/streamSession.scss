@@ -15,6 +15,8 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Header không co */
@@ -40,7 +42,8 @@
   margin-top: 10px;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* ⬅️ tổng bên trái, nút bên phải */
+  justify-content: space-between;
+  /* ⬅️ tổng bên trái, nút bên phải */
   gap: 12px;
 }
 
@@ -62,7 +65,7 @@
 }
 
 /* ✅ CHỈ vùng này scroll */
-.card > .table-wrapper.table-wrapper--vscroll {
+.card>.table-wrapper.table-wrapper--vscroll {
   flex: 1 1 auto;
   min-height: 0;
   height: 0;
@@ -74,11 +77,10 @@
   background: #020617;
 
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
 }
 
 /* Sticky header */
-.card > .table-wrapper.table-wrapper--vscroll thead th {
+.card>.table-wrapper.table-wrapper--vscroll thead th {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -86,16 +88,53 @@
 }
 
 /* FIX hở/cách cột */
-.card > .table-wrapper.table-wrapper--vscroll .table {
+.card>.table-wrapper.table-wrapper--vscroll .table {
   width: 100% !important;
-  min-width: 1200px;
+  min-width: 1350px;
   border-collapse: collapse;
   table-layout: auto;
 }
 
 /* Action không bị kéo dãn */
-.card > .table-wrapper.table-wrapper--vscroll th:last-child,
-.card > .table-wrapper.table-wrapper--vscroll td:last-child {
+.card>.table-wrapper.table-wrapper--vscroll th:last-child,
+.card>.table-wrapper.table-wrapper--vscroll td:last-child {
   width: 1%;
   white-space: nowrap;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: default;
+  user-select: none;
+
+  &--active {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    animation: pulse-active 2s ease-in-out infinite;
+  }
+
+  &--stopped {
+    background: rgba(236, 72, 153, 0.15);
+    color: #f472b6;
+    border: 1px solid rgba(236, 72, 153, 0.3);
+  }
+}
+
+@keyframes pulse-active {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
