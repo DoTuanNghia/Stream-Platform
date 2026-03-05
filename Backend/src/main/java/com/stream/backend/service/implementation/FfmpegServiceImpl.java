@@ -581,6 +581,14 @@ public class FfmpegServiceImpl implements FfmpegService {
         return statMap.get(streamKey);
     }
 
+    @Override
+    public boolean isStreamAlive(String streamKey) {
+        if (streamKey == null || streamKey.isBlank())
+            return false;
+        Process p = processMap.get(streamKey);
+        return p != null && p.isAlive();
+    }
+
     private static long parseLong(String v) {
         try {
             return Long.parseLong(v.trim());

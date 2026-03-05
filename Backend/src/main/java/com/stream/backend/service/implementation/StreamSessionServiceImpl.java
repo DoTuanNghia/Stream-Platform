@@ -481,4 +481,32 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         owners.sort(String.CASE_INSENSITIVE_ORDER);
         return owners;
     }
+
+    @Override
+    public void restartFfmpegForActiveSession(StreamSession session) {
+        if (session == null) {
+            throw new RuntimeException("Session is null");
+        }
+
+        Stream stream = session.getStream();
+        if (stream == null) {
+            throw new RuntimeException("Stream is null for sessionId=" + session.getId());
+        }
+
+        String streamKey = stream.getKeyStream();
+        if (streamKey == null || streamKey.isBlank()) {
+            throw new RuntimeException("Stream key trống cho sessionId=" + session.getId());
+        }
+
+        String videoSource = resolveFirstVideoSource(stream);
+        if (videoSource == null || videoSource.isBlank()) {
+            throw new RuntimeException("Video source trống cho sessionId=" + session.getId());
+        }
+
+        // Restart FFmpeg — startStream sẽ tự stopStream trước nếu cần
+        ffmpegService.startStream(videoSource, null, streamKey);
+
+        log.info("[WATCHDOG] FFmpeg restarted OK for sessionId={}, streamId={}, streamKey={}",
+                session.getId(), stream.getId(), streamKey);
+    }
 }

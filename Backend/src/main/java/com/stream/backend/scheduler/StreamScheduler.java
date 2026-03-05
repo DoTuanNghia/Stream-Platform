@@ -4,10 +4,10 @@ import com.stream.backend.entity.Stream;
 import com.stream.backend.entity.StreamSession;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
+import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamSessionService;
 import com.stream.backend.youtube.YouTubeLiveService;
 import lombok.extern.slf4j.Slf4j;
-
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -29,18 +30,28 @@ public class StreamScheduler {
     private final StreamSessionService streamSessionService;
     private final StreamRepository streamRepository;
     private final YouTubeLiveService youTubeLiveService;
+    private final FfmpegService ffmpegService;
 
     private static final String VIDEO_DIR = "D:\\videos";
+
+    /**
+     * Watchdog: Số lần đã restart cho mỗi sessionId.
+     * Giới hạn tối đa MAX_WATCHDOG_RETRIES lần để tránh loop vô hạn.
+     */
+    private static final int MAX_WATCHDOG_RETRIES = 5;
+    private final ConcurrentHashMap<Integer, Integer> watchdogRetryCounts = new ConcurrentHashMap<>();
 
     public StreamScheduler(
             StreamSessionRepository streamSessionRepository,
             StreamSessionService streamSessionService,
             StreamRepository streamRepository,
-            YouTubeLiveService youTubeLiveService) {
+            YouTubeLiveService youTubeLiveService,
+            FfmpegService ffmpegService) {
         this.streamSessionRepository = streamSessionRepository;
         this.streamSessionService = streamSessionService;
         this.streamRepository = streamRepository;
         this.youTubeLiveService = youTubeLiveService;
+        this.ffmpegService = ffmpegService;
     }
 
     @Scheduled(fixedDelay = 10_000)
@@ -51,7 +62,92 @@ public class StreamScheduler {
     }
 
     /**
-     * Tự động xóa file video sau 24h khi stream ở trạng thái STOPPED
+     * WATCHDOG: Phát hiện và tự động restart FFmpeg process đã chết cho session
+     * ACTIVE.
+     * Chạy mỗi 15 giây để phản ứng nhanh, tránh YouTube hiển thị "No Data".
+     *
+     * Logic:
+     * 1. Quét tất cả session ACTIVE
+     * 2. Bỏ qua session mới start < 60 giây (đang khởi động)
+     * 3. Kiểm tra FFmpeg còn sống không (isStreamAlive + getLatestStat)
+     * 4. Nếu đã chết → restart, giới hạn tối đa 5 lần restart
+     * 5. Nếu vượt quá giới hạn → đánh dấu ERROR
+     */
+    @Scheduled(fixedDelay = 15_000)
+    public void autoRecoverDeadSessions() {
+        int page = 0;
+        int size = 200;
+
+        Page<StreamSession> p;
+        do {
+            p = streamSessionRepository.findByStatusIgnoreCase(
+                    "ACTIVE",
+                    PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id")));
+
+            for (StreamSession session : p.getContent()) {
+                Stream stream = session.getStream();
+                if (stream == null)
+                    continue;
+
+                String streamKey = stream.getKeyStream();
+                if (streamKey == null || streamKey.isBlank())
+                    continue;
+
+                // Bỏ qua session mới start < 60 giây (FFmpeg đang khởi động)
+                LocalDateTime startedAt = session.getStartedAt();
+                if (startedAt != null && startedAt.plusSeconds(60).isAfter(LocalDateTime.now())) {
+                    continue;
+                }
+
+                // Kiểm tra FFmpeg còn sống không
+                boolean alive = ffmpegService.isStreamAlive(streamKey);
+                if (alive) {
+                    // Process còn sống → reset retry count (đã hồi phục thành công trước đó)
+                    watchdogRetryCounts.remove(session.getId());
+                    continue;
+                }
+
+                // FFmpeg đã chết — kiểm tra retry count
+                int retryCount = watchdogRetryCounts.getOrDefault(session.getId(), 0);
+
+                if (retryCount >= MAX_WATCHDOG_RETRIES) {
+                    // Đã retry quá nhiều → đánh dấu ERROR
+                    log.error("[WATCHDOG] Max retries ({}) exceeded for sessionId={}, marking ERROR",
+                            MAX_WATCHDOG_RETRIES, session.getId());
+                    try {
+                        session.setStatus("ERROR");
+                        session.setLastError("WATCHDOG_MAX_RETRIES_EXCEEDED");
+                        session.setLastErrorAt(LocalDateTime.now());
+                        streamSessionRepository.save(session);
+                    } catch (Exception e) {
+                        log.error("[WATCHDOG] Failed to mark ERROR for sessionId={}", session.getId(), e);
+                    }
+                    watchdogRetryCounts.remove(session.getId());
+                    continue;
+                }
+
+                // Restart FFmpeg
+                retryCount++;
+                watchdogRetryCounts.put(session.getId(), retryCount);
+                log.warn("[WATCHDOG] FFmpeg dead for sessionId={}, streamId={}, attempt {}/{}",
+                        session.getId(), stream.getId(), retryCount, MAX_WATCHDOG_RETRIES);
+
+                try {
+                    streamSessionService.restartFfmpegForActiveSession(session);
+                    log.info("[WATCHDOG] Restart OK for sessionId={}, attempt {}/{}",
+                            session.getId(), retryCount, MAX_WATCHDOG_RETRIES);
+                } catch (Exception e) {
+                    log.error("[WATCHDOG] Restart FAILED for sessionId={}, attempt {}/{}: {}",
+                            session.getId(), retryCount, MAX_WATCHDOG_RETRIES, e.getMessage());
+                }
+            }
+
+            page++;
+        } while (!p.isLast());
+    }
+
+    /**
+     * Tự động xóa file video sau 5 phút khi stream ở trạng thái STOPPED
      * Chạy mỗi 5 phút để kiểm tra
      */
     @Scheduled(fixedDelay = 300_000)
@@ -122,13 +218,15 @@ public class StreamScheduler {
         try {
             List<String> activeVideoLists = streamRepository.findAllActiveVideoLists();
             for (String videoList : activeVideoLists) {
-                if (videoList == null || videoList.isBlank()) continue;
+                if (videoList == null || videoList.isBlank())
+                    continue;
 
                 // videoList có thể chứa nhiều đường dẫn, mỗi dòng 1 đường dẫn
                 String[] paths = videoList.split("\\r?\\n");
                 for (String path : paths) {
                     path = path.trim();
-                    if (path.isEmpty()) continue;
+                    if (path.isEmpty())
+                        continue;
 
                     // Lấy tên file từ đường dẫn đầy đủ
                     // VD: D:\videos\210226_01.mp4 → 210226_01.mp4
