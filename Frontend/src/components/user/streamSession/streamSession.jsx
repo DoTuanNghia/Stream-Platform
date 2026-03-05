@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./streamSession.scss";
 import axiosClient from "../../../api/axiosClient";
+import AddStream from "../stream/addStream/addStream.jsx";
 
 const formatDateTime = (iso) => {
   if (!iso) return "n/a";
@@ -58,6 +59,8 @@ const StreamSession = () => {
   const [sessions, setSessions] = useState([]);
   const [ffStats, setFfStats] = useState({});
   const [loading, setLoading] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingStream, setEditingStream] = useState(null);
 
   const wrapperRef = useRef(null);
 
@@ -145,106 +148,154 @@ const StreamSession = () => {
     }
   };
 
+  const handleSaveStream = async (form) => {
+    if (!editingStream) return null;
+    try {
+      const payload = {
+        name: form.note || editingStream.name,
+        keyStream: form.keyLive,
+        videoList: form.videoList && form.videoList.trim() !== "" ? form.videoList : null,
+        timeStart: form.startDate && form.startTime ? `${form.startDate}T${form.startTime}:00` : null,
+        duration:
+          form.duration !== undefined && form.duration !== null && String(form.duration).trim() !== ""
+            ? Number(form.duration)
+            : null,
+      };
+      const savedStream = await axiosClient.put(`/streams/${editingStream.id}`, payload);
+      await fetchSessions();
+      return savedStream;
+    } catch (err) {
+      console.error("Error in handleSaveStream (session):", err);
+      return null;
+    }
+  };
+
+  const openEditModal = (session) => {
+    const stream = session?.stream || {};
+    setEditingStream({ ...stream, _liveStatus: "ACTIVE" });
+    setIsAddOpen(true);
+  };
+
+  const closeAddModal = () => {
+    setIsAddOpen(false);
+    setEditingStream(null);
+  };
+
   const totalText = useMemo(() => {
     if (!sessions.length) return "";
     return `Tổng ${sessions.length} sessions`;
   }, [sessions.length]);
 
   return (
-    <section className="card card--fill">
-      <div className="card__header">
-        <div className="card__headerLeft">
-          <h2 className="card__title">Luồng đang hoạt động</h2>
+    <>
+      <section className="card card--fill">
+        <div className="card__header">
+          <div className="card__headerLeft">
+            <h2 className="card__title">Luồng đang hoạt động</h2>
 
-          <div className="card__headerRow">
-            <span className="header__total">
-              {totalText ? (
-                totalText
-              ) : (
-                <>
-                  Reload ngay hoặc tự động sau <strong>30</strong> giây
-                </>
-              )}
-            </span>
+            <div className="card__headerRow">
+              <span className="header__total">
+                {totalText ? (
+                  totalText
+                ) : (
+                  <>
+                    Reload ngay hoặc tự động sau <strong>30</strong> giây
+                  </>
+                )}
+              </span>
 
-            <button className="btn btn--ghost btn--lg" onClick={fetchSessions}>
-              Reload ngay
-            </button>
+              <button className="btn btn--ghost btn--lg" onClick={fetchSessions}>
+                Reload ngay
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ✅ scroll chỉ trong vùng này */}
-      <div className="table-wrapper table-wrapper--vscroll" ref={wrapperRef}>
-        <table className="table table--small">
-          <thead>
-            <tr>
-              <th>STT</th>
-              <th>Tên luồng</th>
-              <th>Start</th>
-              <th>End dự kiến</th>
-              <th>Thông số</th>
-              <th>Key Live</th>
-              <th>Trạng thái</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {loading ? (
+        {/* ✅ scroll chỉ trong vùng này */}
+        <div className="table-wrapper table-wrapper--vscroll" ref={wrapperRef}>
+          <table className="table table--small">
+            <thead>
               <tr>
-                <td colSpan={8}>Đang tải...</td>
+                <th>STT</th>
+                <th>Tên luồng</th>
+                <th>Start</th>
+                <th>End dự kiến</th>
+                <th>Thông số</th>
+                <th>Key Live</th>
+                <th>Trạng thái</th>
+                <th>Action</th>
               </tr>
-            ) : sessions.length === 0 ? (
-              <tr>
-                <td colSpan={8}>Không có session nào.</td>
-              </tr>
-            ) : (
-              sessions.map((s, index) => {
-                const stream = s.stream || {};
-                const note = stream.name || "-";
+            </thead>
 
-                const startIso = getDisplayStart(s);
-                const start = formatDateTime(startIso);
-                const end = getDisplayEnd(s);
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8}>Đang tải...</td>
+                </tr>
+              ) : sessions.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>Không có session nào.</td>
+                </tr>
+              ) : (
+                sessions.map((s, index) => {
+                  const stream = s.stream || {};
+                  const note = stream.name || "-";
 
-                const keyLive = stream.keyStream || "-";
-                const status = s.status || "-";
-                const upperStatus = String(status).toUpperCase();
+                  const startIso = getDisplayStart(s);
+                  const start = formatDateTime(startIso);
+                  const end = getDisplayEnd(s);
 
-                const stats =
-                  upperStatus === "ACTIVE" ? buildStatText(ffStats[keyLive]) : s.specification || "-";
+                  const keyLive = stream.keyStream || "-";
+                  const status = s.status || "-";
+                  const upperStatus = String(status).toUpperCase();
 
-                const canStop = upperStatus === "ACTIVE";
+                  const stats =
+                    upperStatus === "ACTIVE" ? buildStatText(ffStats[keyLive]) : s.specification || "-";
 
-                return (
-                  <tr key={s.id}>
-                    <td>{index + 1}</td>
-                    <td>{note}</td>
-                    <td>{start}</td>
-                    <td>{end}</td>
-                    <td>{stats}</td>
-                    <td className="table__mono">{keyLive}</td>
-                    <td>{status}</td>
-                    <td>
-                      <button
-                        className={`btn ${canStop ? "btn--danger" : "btn--ghost"}`}
-                        onClick={() => handleStop(s.id)}
-                        disabled={!canStop}
-                        title={!canStop ? "Chỉ dừng được khi session đang ACTIVE" : ""}
-                      >
-                        Ngừng Stream Ngay
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+                  const canStop = upperStatus === "ACTIVE";
+
+                  return (
+                    <tr key={s.id}>
+                      <td>{index + 1}</td>
+                      <td>{note}</td>
+                      <td>{start}</td>
+                      <td>{end}</td>
+                      <td>{stats}</td>
+                      <td className="table__mono">{keyLive}</td>
+                      <td>
+                        <span className={`status-badge status-badge--${upperStatus.toLowerCase()}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="table__actions">
+                          <button
+                            className="btn btn--ghost"
+                            onClick={() => openEditModal(s)}
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            className={`btn ${canStop ? "btn--danger" : "btn--ghost"}`}
+                            onClick={() => handleStop(s.id)}
+                            disabled={!canStop}
+                            title={!canStop ? "Chỉ dừng được khi session đang ACTIVE" : ""}
+                          >
+                            Ngừng Ngay
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <AddStream isOpen={isAddOpen} onClose={closeAddModal} onSave={handleSaveStream} initialData={editingStream} />
+    </>);
 };
 
 export default StreamSession;

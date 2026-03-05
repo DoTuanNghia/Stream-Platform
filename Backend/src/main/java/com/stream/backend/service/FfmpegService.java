@@ -16,5 +16,6 @@ public interface FfmpegService {
     void stopStream(String streamKey);
 
     FfmpegStat getLatestStat(String streamKey);
-}
 
+    boolean isStreamAlive(String streamKey);
+}

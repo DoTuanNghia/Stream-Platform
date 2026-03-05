@@ -34,4 +34,6 @@ public interface StreamSessionService {
     Map<String, Object> getAdminStats();
 
     List<String> getOwnersByStatus(String status);
+
+    void restartFfmpegForActiveSession(StreamSession session);
 }

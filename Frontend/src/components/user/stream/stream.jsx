@@ -359,17 +359,18 @@ const Stream = () => {
                       <td>{st.duration === -1 ? "∞" : st.duration != null ? `${st.duration} phút` : "none"}</td>
                       <td className="table__mono">{st.keyStream}</td>
                       <td>
-                        {status === "ERROR" ? (
-                          <span
-                            className="status-badge status-badge--error"
-                            onClick={() => alert(translateError(lastError))}
-                            title="Bấm để xem chi tiết lỗi"
-                          >
-                            ERROR
-                          </span>
-                        ) : (
-                          status
-                        )}
+                        <span
+                          className={`status-badge ${status === "ACTIVE" ? "status-badge--active" :
+                            status === "SCHEDULED" ? "status-badge--scheduled" :
+                              status === "STOPPED" ? "status-badge--stopped" :
+                                status === "ERROR" ? "status-badge--error" :
+                                  "status-badge--none"
+                            }`}
+                          onClick={status === "ERROR" ? () => alert(translateError(lastError)) : undefined}
+                          style={status === "ERROR" ? { cursor: "pointer" } : undefined}
+                        >
+                          {status}
+                        </span>
                       </td>
                       <td>
                         <div className="table__actions">
@@ -377,8 +378,11 @@ const Stream = () => {
                             Xóa
                           </button>
                           <button
-                            className="btn btn--ghost"
-                            onClick={() => openEditModal(st, status)}
+                            className={`btn btn--ghost ${status === "ACTIVE" ? "btn--disabled" : ""}`}
+                            onClick={() => {
+                              if (status === "ACTIVE") return;
+                              openEditModal(st, status);
+                            }}
                           >
                             Sửa
                           </button>
