@@ -31,6 +31,9 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class StreamSessionServiceImpl implements StreamSessionService {
 
+    private static final int FFMPEG_MAX_RETRY = 3;
+    private static final long FFMPEG_RETRY_DELAY_MS = 5000;
+
     private final StreamSessionRepository streamSessionRepository;
     private final StreamRepository streamRepository;
     private final FfmpegService ffmpegService;
@@ -199,21 +202,40 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         String videoSource = resolveFirstVideoSource(stream);
 
-        try {
-            ffmpegService.startStream(videoSource, null, streamKey);
+        String lastMsg = "FFMPEG_START_FAILED";
+        for (int attempt = 1; attempt <= FFMPEG_MAX_RETRY; attempt++) {
+            try {
+                ffmpegService.startStream(videoSource, null, streamKey);
 
-            session.setStatus("ACTIVE");
-            session.setStartedAt(LocalDateTime.now());
-            session.setStoppedAt(null);
-            streamSessionRepository.save(session);
+                session.setStatus("ACTIVE");
+                session.setStartedAt(LocalDateTime.now());
+                session.setStoppedAt(null);
+                session.setLastError(null);
+                session.setLastErrorAt(null);
+                streamSessionRepository.save(session);
 
-            return session;
+                log.info("[RETRY] Manual stream started OK on attempt {}/{} for streamId={}",
+                        attempt, FFMPEG_MAX_RETRY, streamId);
+                return session;
 
-        } catch (Exception e) {
-            String msg = e.getMessage() != null ? e.getMessage() : "FFMPEG_START_FAILED";
-            markError(session, msg);
-            throw new RuntimeException("Không thể bắt đầu stream: " + msg);
+            } catch (Exception e) {
+                lastMsg = e.getMessage() != null ? e.getMessage() : "FFMPEG_START_FAILED";
+                log.warn("[RETRY] Manual start attempt {}/{} failed for streamId={}: {}",
+                        attempt, FFMPEG_MAX_RETRY, streamId, lastMsg);
+
+                if (attempt < FFMPEG_MAX_RETRY) {
+                    try {
+                        Thread.sleep(FFMPEG_RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
         }
+
+        markError(session, lastMsg);
+        throw new RuntimeException("Không thể bắt đầu stream (đã retry " + FFMPEG_MAX_RETRY + " lần): " + lastMsg);
     }
 
     @Override
@@ -241,23 +263,41 @@ public class StreamSessionServiceImpl implements StreamSessionService {
 
         String videoSource = resolveFirstVideoSource(stream);
 
-        try {
-            ffmpegService.startStream(videoSource, null, streamKey);
+        String lastMsg = "FFMPEG_START_FAILED";
+        for (int attempt = 1; attempt <= FFMPEG_MAX_RETRY; attempt++) {
+            try {
+                ffmpegService.startStream(videoSource, null, streamKey);
 
-            session.setStatus("ACTIVE");
-            session.setStartedAt(LocalDateTime.now());
-            session.setStoppedAt(null);
-            streamSessionRepository.save(session);
+                session.setStatus("ACTIVE");
+                session.setStartedAt(LocalDateTime.now());
+                session.setStoppedAt(null);
+                session.setLastError(null);
+                session.setLastErrorAt(null);
+                streamSessionRepository.save(session);
 
-            return session;
+                log.info("[RETRY] Scheduled stream started OK on attempt {}/{} for sessionId={}",
+                        attempt, FFMPEG_MAX_RETRY, streamSessionId);
+                return session;
 
-        } catch (Exception e) {
-            String msg = e.getMessage() != null ? e.getMessage() : "FFMPEG_START_FAILED";
-            markError(session, msg);
+            } catch (Exception e) {
+                lastMsg = e.getMessage() != null ? e.getMessage() : "FFMPEG_START_FAILED";
+                log.warn("[RETRY] Scheduled start attempt {}/{} failed for sessionId={}: {}",
+                        attempt, FFMPEG_MAX_RETRY, streamSessionId, lastMsg);
 
-            // scheduler không cần throw, để transaction commit và lưu ERROR
-            return session;
+                if (attempt < FFMPEG_MAX_RETRY) {
+                    try {
+                        Thread.sleep(FFMPEG_RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
         }
+
+        markError(session, lastMsg);
+        // scheduler không cần throw, để transaction commit và lưu ERROR
+        return session;
 
     }
 

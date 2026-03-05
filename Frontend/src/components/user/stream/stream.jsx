@@ -361,10 +361,10 @@ const Stream = () => {
                       <td>
                         <span
                           className={`status-badge ${status === "ACTIVE" ? "status-badge--active" :
-                              status === "SCHEDULED" ? "status-badge--scheduled" :
-                                status === "STOPPED" ? "status-badge--stopped" :
-                                  status === "ERROR" ? "status-badge--error" :
-                                    "status-badge--none"
+                            status === "SCHEDULED" ? "status-badge--scheduled" :
+                              status === "STOPPED" ? "status-badge--stopped" :
+                                status === "ERROR" ? "status-badge--error" :
+                                  "status-badge--none"
                             }`}
                           onClick={status === "ERROR" ? () => alert(translateError(lastError)) : undefined}
                           style={status === "ERROR" ? { cursor: "pointer" } : undefined}
