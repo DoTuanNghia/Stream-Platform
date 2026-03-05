@@ -488,7 +488,16 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             throw new RuntimeException("Session is null");
         }
 
-        Stream stream = session.getStream();
+        // Re-read từ DB để đảm bảo session vẫn ACTIVE
+        // Tránh race condition: user stop stream giữa lúc watchdog đang xử lý
+        StreamSession freshSession = streamSessionRepository.findById(session.getId()).orElse(null);
+        if (freshSession == null || !"ACTIVE".equalsIgnoreCase(freshSession.getStatus())) {
+            log.info("[WATCHDOG] Session {} no longer ACTIVE (status={}), skipping restart",
+                    session.getId(), freshSession != null ? freshSession.getStatus() : "DELETED");
+            return;
+        }
+
+        Stream stream = freshSession.getStream();
         if (stream == null) {
             throw new RuntimeException("Stream is null for sessionId=" + session.getId());
         }
