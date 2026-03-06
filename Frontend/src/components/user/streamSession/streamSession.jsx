@@ -162,6 +162,13 @@ const StreamSession = () => {
             : null,
       };
       const savedStream = await axiosClient.put(`/streams/${editingStream.id}`, payload);
+
+      // ✅ Nếu video thay đổi → thông báo async swap
+      const videoChanged = payload.videoList && payload.videoList !== (editingStream.videoList || "");
+      if (videoChanged) {
+        alert("Video mới đang được tải ngầm về server.\nLuồng sẽ tự động chuyển sang video mới khi tải xong.");
+      }
+
       await fetchSessions();
       return savedStream;
     } catch (err) {

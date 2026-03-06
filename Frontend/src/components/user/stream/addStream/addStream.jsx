@@ -267,7 +267,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
     <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onMouseUp={handleOverlayMouseUp}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span className="modal__title">{isLiveEdit ? "Sửa Duration (đang Live)" : initialData ? "Sửa Stream" : "Tạo Stream"}</span>
+          <span className="modal__title">{isLiveEdit ? "Sửa như ban đầu (đang Live)" : initialData ? "Sửa Stream" : "Tạo Stream"}</span>
           <button className="modal__close" onClick={onClose} disabled={isDownloading}>×</button>
         </div>
 
@@ -304,7 +304,7 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
               value={form.videoList}
               onChange={handleChange}
               placeholder='Tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4)'
-              disabled={isDownloading || isLiveEdit}
+              disabled={isDownloading}
             />
           </div>
 

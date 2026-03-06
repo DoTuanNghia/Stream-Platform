@@ -17,6 +17,7 @@ import com.stream.backend.entity.StreamSession;
 import com.stream.backend.repository.MemberRepository;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
+import com.stream.backend.service.AsyncVideoSwapService;
 import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamService;
 import com.stream.backend.youtube.YouTubeLiveService;
@@ -33,19 +34,22 @@ public class StreamServiceImpl implements StreamService {
 
     private final YouTubeLiveService youTubeLiveService;
     private final FfmpegService ffmpegService;
+    private final AsyncVideoSwapService asyncVideoSwapService;
 
     public StreamServiceImpl(
             StreamRepository streamRepository,
             StreamSessionRepository streamSessionRepository,
             MemberRepository memberRepository,
             YouTubeLiveService youTubeLiveService,
-            FfmpegService ffmpegService) {
+            FfmpegService ffmpegService,
+            AsyncVideoSwapService asyncVideoSwapService) {
 
         this.streamRepository = streamRepository;
         this.streamSessionRepository = streamSessionRepository;
         this.memberRepository = memberRepository;
         this.youTubeLiveService = youTubeLiveService;
         this.ffmpegService = ffmpegService;
+        this.asyncVideoSwapService = asyncVideoSwapService;
     }
 
     @Override
@@ -202,6 +206,7 @@ public class StreamServiceImpl implements StreamService {
 
         boolean isStoppedOrError = ss != null && ("STOPPED".equalsIgnoreCase(ss.getStatus())
                 || "ERROR".equalsIgnoreCase(ss.getStatus()));
+        boolean isActive = ss != null && "ACTIVE".equalsIgnoreCase(ss.getStatus());
 
         // ✅ Luôn cập nhật name và keyStream
         if (stream.getName() != null)
@@ -209,28 +214,74 @@ public class StreamServiceImpl implements StreamService {
         if (stream.getKeyStream() != null)
             existing.setKeyStream(stream.getKeyStream());
 
-        // ✅ Nếu stream đang STOPPED hoặc ERROR → chỉ giữ name và keyStream, reset các
-        // trường khác
-        if (isStoppedOrError && ss != null) {
-            log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, resetting all fields except name and keyStream", id);
-
-            // Xóa video cũ nếu có
+        // ✅ NẾU ĐANG ACTIVE và video thay đổi → Async tải video mới rồi Hot-Swap FFmpeg
+        if (isActive) {
+            String newVideoList = stream.getVideoList();
             String oldVideoList = existing.getVideoList();
-            if (oldVideoList != null && !oldVideoList.isBlank()) {
-                deleteOldVideoFiles(oldVideoList, null);
+            boolean videoChanged = newVideoList != null && !newVideoList.trim().isEmpty()
+                    && !newVideoList.equals(oldVideoList);
+
+            if (videoChanged) {
+                log.info("[UPDATE-STREAM] Stream {} đang ACTIVE, kích hoạt Async Hot-Swap video mới: {}",
+                        id, newVideoList);
+                // KHÔNG cập nhật videoList vào DB ngay → để AsyncVideoSwapService xử lý sau khi
+                // tải xong
+                asyncVideoSwapService.downloadAndSwapVideo(existing.getId(), newVideoList.trim());
             }
 
-            // Reset các trường về null
-            existing.setVideoList(null);
-            existing.setTimeStart(null);
-            existing.setDuration(null);
+            // Cho phép cập nhật duration khi đang ACTIVE (tính năng đã có sẵn)
+            if (stream.getDuration() != null) {
+                existing.setDuration(stream.getDuration());
+            }
 
-            ss.setStatus("NONE");
-            ss.setSpecification("Edited -> reset from STOPPED (awaiting new schedule)");
+            Stream saved = streamRepository.save(existing);
+            return saved;
+        }
+
+        // ✅ Nếu stream đang STOPPED hoặc ERROR → nhận dữ liệu mới, nếu đủ điều kiện → SCHEDULED
+        if (isStoppedOrError && ss != null) {
+            log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, accepting new data for reschedule", id);
+
+            // Xử lý videoList mới
+            String newVideoList = stream.getVideoList();
+            boolean newVideoIsEmpty = newVideoList == null || newVideoList.trim().isEmpty();
+            String oldVideoList = existing.getVideoList();
+
+            if (newVideoIsEmpty) {
+                // FE muốn xóa video → xóa file cũ và set null
+                if (oldVideoList != null && !oldVideoList.isBlank()) {
+                    deleteOldVideoFiles(oldVideoList, null);
+                }
+                existing.setVideoList(null);
+            } else {
+                // FE gửi video mới → xóa video cũ nếu khác
+                if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
+                    deleteOldVideoFiles(oldVideoList, newVideoList);
+                }
+                existing.setVideoList(newVideoList);
+            }
+
+            // Cập nhật timeStart và duration từ request
+            existing.setTimeStart(stream.getTimeStart());
+            existing.setDuration(stream.getDuration());
+
+            // Reset session timing và error
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
             ss.setLastError(null);
             ss.setLastErrorAt(null);
+
+            // Kiểm tra đủ điều kiện → SCHEDULED, chưa đủ → NONE
+            if (isStreamComplete(existing)) {
+                ss.setStatus("SCHEDULED");
+                ss.setSpecification("Edited -> rescheduled from STOPPED");
+                log.info("[UPDATE-STREAM] Stream {} is now SCHEDULED after edit", id);
+            } else {
+                ss.setStatus("NONE");
+                ss.setSpecification("Edited from STOPPED (incomplete, awaiting more data)");
+                log.info("[UPDATE-STREAM] Stream {} set to NONE (incomplete after edit)", id);
+            }
+
             streamSessionRepository.save(ss);
         } else {
             // ✅ Nếu stream không phải STOPPED → cập nhật bình thường
