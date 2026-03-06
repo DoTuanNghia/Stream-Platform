@@ -238,28 +238,50 @@ public class StreamServiceImpl implements StreamService {
             return saved;
         }
 
-        // ✅ Nếu stream đang STOPPED hoặc ERROR → chỉ giữ name và keyStream, reset các
-        // trường khác
+        // ✅ Nếu stream đang STOPPED hoặc ERROR → nhận dữ liệu mới, nếu đủ điều kiện → SCHEDULED
         if (isStoppedOrError && ss != null) {
-            log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, resetting all fields except name and keyStream", id);
+            log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, accepting new data for reschedule", id);
 
-            // Xóa video cũ nếu có
+            // Xử lý videoList mới
+            String newVideoList = stream.getVideoList();
+            boolean newVideoIsEmpty = newVideoList == null || newVideoList.trim().isEmpty();
             String oldVideoList = existing.getVideoList();
-            if (oldVideoList != null && !oldVideoList.isBlank()) {
-                deleteOldVideoFiles(oldVideoList, null);
+
+            if (newVideoIsEmpty) {
+                // FE muốn xóa video → xóa file cũ và set null
+                if (oldVideoList != null && !oldVideoList.isBlank()) {
+                    deleteOldVideoFiles(oldVideoList, null);
+                }
+                existing.setVideoList(null);
+            } else {
+                // FE gửi video mới → xóa video cũ nếu khác
+                if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
+                    deleteOldVideoFiles(oldVideoList, newVideoList);
+                }
+                existing.setVideoList(newVideoList);
             }
 
-            // Reset các trường về null
-            existing.setVideoList(null);
-            existing.setTimeStart(null);
-            existing.setDuration(null);
+            // Cập nhật timeStart và duration từ request
+            existing.setTimeStart(stream.getTimeStart());
+            existing.setDuration(stream.getDuration());
 
-            ss.setStatus("NONE");
-            ss.setSpecification("Edited -> reset from STOPPED (awaiting new schedule)");
+            // Reset session timing và error
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
             ss.setLastError(null);
             ss.setLastErrorAt(null);
+
+            // Kiểm tra đủ điều kiện → SCHEDULED, chưa đủ → NONE
+            if (isStreamComplete(existing)) {
+                ss.setStatus("SCHEDULED");
+                ss.setSpecification("Edited -> rescheduled from STOPPED");
+                log.info("[UPDATE-STREAM] Stream {} is now SCHEDULED after edit", id);
+            } else {
+                ss.setStatus("NONE");
+                ss.setSpecification("Edited from STOPPED (incomplete, awaiting more data)");
+                log.info("[UPDATE-STREAM] Stream {} set to NONE (incomplete after edit)", id);
+            }
+
             streamSessionRepository.save(ss);
         } else {
             // ✅ Nếu stream không phải STOPPED → cập nhật bình thường
