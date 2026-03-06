@@ -17,6 +17,7 @@ import com.stream.backend.entity.StreamSession;
 import com.stream.backend.repository.MemberRepository;
 import com.stream.backend.repository.StreamRepository;
 import com.stream.backend.repository.StreamSessionRepository;
+import com.stream.backend.service.AsyncVideoSwapService;
 import com.stream.backend.service.FfmpegService;
 import com.stream.backend.service.StreamService;
 import com.stream.backend.youtube.YouTubeLiveService;
@@ -33,19 +34,22 @@ public class StreamServiceImpl implements StreamService {
 
     private final YouTubeLiveService youTubeLiveService;
     private final FfmpegService ffmpegService;
+    private final AsyncVideoSwapService asyncVideoSwapService;
 
     public StreamServiceImpl(
             StreamRepository streamRepository,
             StreamSessionRepository streamSessionRepository,
             MemberRepository memberRepository,
             YouTubeLiveService youTubeLiveService,
-            FfmpegService ffmpegService) {
+            FfmpegService ffmpegService,
+            AsyncVideoSwapService asyncVideoSwapService) {
 
         this.streamRepository = streamRepository;
         this.streamSessionRepository = streamSessionRepository;
         this.memberRepository = memberRepository;
         this.youTubeLiveService = youTubeLiveService;
         this.ffmpegService = ffmpegService;
+        this.asyncVideoSwapService = asyncVideoSwapService;
     }
 
     @Override
@@ -202,12 +206,37 @@ public class StreamServiceImpl implements StreamService {
 
         boolean isStoppedOrError = ss != null && ("STOPPED".equalsIgnoreCase(ss.getStatus())
                 || "ERROR".equalsIgnoreCase(ss.getStatus()));
+        boolean isActive = ss != null && "ACTIVE".equalsIgnoreCase(ss.getStatus());
 
         // ✅ Luôn cập nhật name và keyStream
         if (stream.getName() != null)
             existing.setName(stream.getName());
         if (stream.getKeyStream() != null)
             existing.setKeyStream(stream.getKeyStream());
+
+        // ✅ NẾU ĐANG ACTIVE và video thay đổi → Async tải video mới rồi Hot-Swap FFmpeg
+        if (isActive) {
+            String newVideoList = stream.getVideoList();
+            String oldVideoList = existing.getVideoList();
+            boolean videoChanged = newVideoList != null && !newVideoList.trim().isEmpty()
+                    && !newVideoList.equals(oldVideoList);
+
+            if (videoChanged) {
+                log.info("[UPDATE-STREAM] Stream {} đang ACTIVE, kích hoạt Async Hot-Swap video mới: {}",
+                        id, newVideoList);
+                // KHÔNG cập nhật videoList vào DB ngay → để AsyncVideoSwapService xử lý sau khi
+                // tải xong
+                asyncVideoSwapService.downloadAndSwapVideo(existing.getId(), newVideoList.trim());
+            }
+
+            // Cho phép cập nhật duration khi đang ACTIVE (tính năng đã có sẵn)
+            if (stream.getDuration() != null) {
+                existing.setDuration(stream.getDuration());
+            }
+
+            Stream saved = streamRepository.save(existing);
+            return saved;
+        }
 
         // ✅ Nếu stream đang STOPPED hoặc ERROR → chỉ giữ name và keyStream, reset các
         // trường khác
