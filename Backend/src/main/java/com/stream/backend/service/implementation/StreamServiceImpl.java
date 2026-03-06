@@ -82,18 +82,11 @@ public class StreamServiceImpl implements StreamService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         stream.setOwner(owner);
 
-        // (tuỳ bạn) nếu còn dùng Youtube schedule, bạn bật lại:
-        // try {
-        // String streamKey =
-        // youTubeLiveService.createScheduledBroadcastForStream(stream);
-        // stream.setKeyStream(streamKey);
-        // } catch (Exception e) {
-        // throw new RuntimeException("Không tạo được lịch YouTube", e);
-        // }
+
 
         Stream saved = streamRepository.save(stream);
 
-        // ✅ Kiểm tra đầy đủ các thuộc tính để tạo session SCHEDULED
+
         if (isStreamComplete(saved)) {
             StreamSession ss = streamSessionRepository
                     .findTopByStreamIdOrderByIdDesc(saved.getId())
@@ -148,7 +141,7 @@ public class StreamServiceImpl implements StreamService {
             st.setOwner(owner);
             st.setName(name.trim());
             st.setKeyStream(key.trim());
-            // các field khác để null (video/timeStart/duration...)
+
             st.setVideoList(null);
             st.setTimeStart(null);
             st.setDuration(null);
@@ -170,7 +163,7 @@ public class StreamServiceImpl implements StreamService {
         Stream existingStream = streamRepository.findById(stream.getId())
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        // Xóa session (nếu ACTIVE thì stop FFmpeg + complete youtube)
+
         StreamSession ss = streamSessionRepository
                 .findTopByStreamIdOrderByIdDesc(existingStream.getId())
                 .orElse(null);
@@ -199,7 +192,7 @@ public class StreamServiceImpl implements StreamService {
         Stream existing = streamRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Stream not found"));
 
-        // ✅ Kiểm tra trạng thái STOPPED trước khi cập nhật
+
         StreamSession ss = streamSessionRepository
                 .findTopByStreamIdOrderByIdDesc(id)
                 .orElse(null);
@@ -208,28 +201,25 @@ public class StreamServiceImpl implements StreamService {
                 || "ERROR".equalsIgnoreCase(ss.getStatus()));
         boolean isActive = ss != null && "ACTIVE".equalsIgnoreCase(ss.getStatus());
 
-        // ✅ Luôn cập nhật name và keyStream
+
         if (stream.getName() != null)
             existing.setName(stream.getName());
         if (stream.getKeyStream() != null)
             existing.setKeyStream(stream.getKeyStream());
 
-        // ✅ NẾU ĐANG ACTIVE và video thay đổi → Async tải video mới rồi Hot-Swap FFmpeg
+        // ACTIVE → Async Hot-Swap video nếu thay đổi
         if (isActive) {
             String newVideoList = stream.getVideoList();
             String oldVideoList = existing.getVideoList();
             boolean videoChanged = newVideoList != null && !newVideoList.trim().isEmpty()
                     && !newVideoList.equals(oldVideoList);
 
-            if (videoChanged) {
-                log.info("[UPDATE-STREAM] Stream {} đang ACTIVE, kích hoạt Async Hot-Swap video mới: {}",
-                        id, newVideoList);
-                // KHÔNG cập nhật videoList vào DB ngay → để AsyncVideoSwapService xử lý sau khi
-                // tải xong
+            if (videoChanged && newVideoList != null) {
+                log.info("[UPDATE-STREAM] Stream {} ACTIVE, Async Hot-Swap: {}", id, newVideoList);
                 asyncVideoSwapService.downloadAndSwapVideo(existing.getId(), newVideoList.trim());
             }
 
-            // Cho phép cập nhật duration khi đang ACTIVE (tính năng đã có sẵn)
+
             if (stream.getDuration() != null) {
                 existing.setDuration(stream.getDuration());
             }
@@ -238,98 +228,85 @@ public class StreamServiceImpl implements StreamService {
             return saved;
         }
 
-        // ✅ Nếu stream đang STOPPED hoặc ERROR → nhận dữ liệu mới, nếu đủ điều kiện → SCHEDULED
+        // STOPPED/ERROR → nhận dữ liệu mới, đủ điều kiện → SCHEDULED
         if (isStoppedOrError && ss != null) {
-            log.info("[UPDATE-STREAM] Stream {} is STOPPED/ERROR, accepting new data for reschedule", id);
-
-            // Xử lý videoList mới
+            log.info("[UPDATE-STREAM] Stream {} STOPPED/ERROR, accepting new data", id);
             String newVideoList = stream.getVideoList();
             boolean newVideoIsEmpty = newVideoList == null || newVideoList.trim().isEmpty();
             String oldVideoList = existing.getVideoList();
 
             if (newVideoIsEmpty) {
-                // FE muốn xóa video → xóa file cũ và set null
                 if (oldVideoList != null && !oldVideoList.isBlank()) {
                     deleteOldVideoFiles(oldVideoList, null);
                 }
                 existing.setVideoList(null);
             } else {
-                // FE gửi video mới → xóa video cũ nếu khác
                 if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
                     deleteOldVideoFiles(oldVideoList, newVideoList);
                 }
                 existing.setVideoList(newVideoList);
             }
 
-            // Cập nhật timeStart và duration từ request
+
             existing.setTimeStart(stream.getTimeStart());
             existing.setDuration(stream.getDuration());
 
-            // Reset session timing và error
+
             ss.setStartedAt(null);
             ss.setStoppedAt(null);
             ss.setLastError(null);
             ss.setLastErrorAt(null);
 
-            // Kiểm tra đủ điều kiện → SCHEDULED, chưa đủ → NONE
+
             if (isStreamComplete(existing)) {
                 ss.setStatus("SCHEDULED");
                 ss.setSpecification("Edited -> rescheduled from STOPPED");
-                log.info("[UPDATE-STREAM] Stream {} is now SCHEDULED after edit", id);
+
             } else {
                 ss.setStatus("NONE");
                 ss.setSpecification("Edited from STOPPED (incomplete, awaiting more data)");
-                log.info("[UPDATE-STREAM] Stream {} set to NONE (incomplete after edit)", id);
+
             }
 
             streamSessionRepository.save(ss);
         } else {
-            // ✅ Nếu stream không phải STOPPED → cập nhật bình thường
-
-            // ✅ XÓA VIDEO CŨ KHI UPDATE VIDEOLIST MỚI
-            // Xử lý cả trường hợp FE gửi empty string "" (coi như null)
+            // Trạng thái bình thường (NONE/SCHEDULED) → cập nhật thông thường
             String newVideoList = stream.getVideoList();
             boolean newVideoIsEmpty = newVideoList == null || newVideoList.trim().isEmpty();
 
             String oldVideoList = existing.getVideoList();
 
             if (newVideoIsEmpty) {
-                // FE muốn xóa video → xóa file cũ và set null
                 if (oldVideoList != null && !oldVideoList.isBlank()) {
                     deleteOldVideoFiles(oldVideoList, null);
                 }
                 existing.setVideoList(null);
             } else {
-                // FE gửi video mới
                 if (oldVideoList != null && !oldVideoList.isBlank() && !oldVideoList.equals(newVideoList)) {
                     deleteOldVideoFiles(oldVideoList, newVideoList);
                 }
                 existing.setVideoList(newVideoList);
             }
 
-            // ✅ cho phép update cả null (khi FE gửi null)
+
             existing.setTimeStart(stream.getTimeStart());
             existing.setDuration(stream.getDuration());
 
-            // ✅ Kiểm tra lại trạng thái stream sau khi cập nhật
+
             boolean isComplete = isStreamComplete(existing);
 
             if (ss == null) {
-                // Chưa có session
                 if (isComplete) {
-                    // ✅ FIX RACE CONDITION: Re-fetch session để đảm bảo không có session được tạo
-                    // bởi request khác
+                    // Re-fetch session (race condition guard)
                     ss = streamSessionRepository.findTopByStreamIdOrderByIdDesc(id).orElse(null);
                     if (ss == null) {
                         try {
-                            // Stream đủ điều kiện → tạo SCHEDULED
                             StreamSession newSs = new StreamSession();
                             newSs.setStream(existing);
                             newSs.setStatus("SCHEDULED");
                             newSs.setSpecification("Edited -> scheduled");
                             streamSessionRepository.save(newSs);
                         } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                            // ✅ Nếu gặp duplicate key → re-fetch và update session
                             log.warn("[UPDATE-STREAM] Race condition detected for stream {}, re-fetching session", id);
                             ss = streamSessionRepository.findTopByStreamIdOrderByIdDesc(id).orElse(null);
                             if (ss != null && !"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
@@ -339,7 +316,6 @@ public class StreamServiceImpl implements StreamService {
                             }
                         }
                     } else {
-                        // Session đã được tạo bởi request khác → update thay vì tạo mới
                         if (!"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
                             ss.setStatus("SCHEDULED");
                             ss.setSpecification("Edited -> scheduled");
@@ -347,18 +323,16 @@ public class StreamServiceImpl implements StreamService {
                         }
                     }
                 }
-                // Nếu không đủ điều kiện và chưa có session → không làm gì
             } else {
-                // Đã có session
                 if (isComplete) {
-                    // Stream đủ điều kiện → giữ hoặc set SCHEDULED (nếu chưa phải SCHEDULED/ACTIVE)
+
                     if (!"SCHEDULED".equalsIgnoreCase(ss.getStatus()) && !"ACTIVE".equalsIgnoreCase(ss.getStatus())) {
                         ss.setStatus("SCHEDULED");
                         ss.setSpecification("Edited -> rescheduled");
                         streamSessionRepository.save(ss);
                     }
                 } else {
-                    // Stream KHÔNG đủ điều kiện → set về NONE (không xóa session, chỉ đổi status)
+
                     if ("SCHEDULED".equalsIgnoreCase(ss.getStatus())) {
                         ss.setStatus("NONE");
                         ss.setSpecification("Edited -> incomplete (missing required fields)");
