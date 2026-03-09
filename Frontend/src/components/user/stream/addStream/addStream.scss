@@ -97,10 +97,21 @@
   gap: 8px;
   align-items: center;
 
-  // ✅ giữ layout 2 ô chia đều
   input[name="startTime"],
   input[type="date"] {
     flex: 1;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-text,
+  input[type="date"]::-webkit-datetime-edit-month-field,
+  input[type="date"]::-webkit-datetime-edit-day-field,
+  input[type="date"]::-webkit-datetime-edit-year-field {
+    color: #f9fafb;
   }
 }
 
