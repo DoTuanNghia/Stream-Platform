@@ -59,6 +59,135 @@
   gap: 12px;
 }
 
+/* Header left: Tổng + Filter */
+.header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* =====================
+   STATUS FILTER DROPDOWN
+   ===================== */
+.status-filter {
+  position: relative;
+}
+
+.status-filter__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(51, 65, 85, 0.8);
+    color: #e2e8f0;
+    border-color: #475569;
+  }
+
+  &--active {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.4);
+
+    &:hover {
+      background: rgba(59, 130, 246, 0.25);
+    }
+  }
+}
+
+.status-filter__icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.status-filter__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 150px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 6px;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: filterSlideIn 0.15s ease-out;
+}
+
+@keyframes filterSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.status-filter__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: rgba(51, 65, 85, 0.6);
+    color: #f1f5f9;
+  }
+
+  &--selected {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+  }
+}
+
+.status-filter__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &--all {
+    background: #64748b;
+  }
+  &--none {
+    background: #6b7280;
+  }
+  &--scheduled {
+    background: #3b82f6;
+  }
+  &--active {
+    background: #22c55e;
+  }
+  &--stopped {
+    background: #ec4899;
+  }
+  &--error {
+    background: #dc2626;
+  }
+}
+
 /* Button lớn hơn */
 .btn--lg {
   padding: 10px 16px;
