@@ -1,5 +1,5 @@
 // src/components/stream/stream.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./stream.scss";
 import AddStream from "./addStream/addStream.jsx";
 import AddStreamsBulk from "./addStream/addStreamsBulk.jsx";
@@ -56,6 +56,9 @@ const Stream = () => {
   const [error, setError] = useState("");
   const [editingStream, setEditingStream] = useState(null);
   const [totalElements, setTotalElements] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterRef = useRef(null);
 
   const wrapperRef = useRef(null);
 
@@ -158,6 +161,42 @@ const Stream = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // ✅ Đóng dropdown khi click bên ngoài
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ✅ Lấy danh sách trạng thái thực tế từ streams hiện có
+  const availableStatuses = useMemo(() => {
+    const statusSet = new Set();
+    streams.forEach((st) => {
+      const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
+      statusSet.add(status);
+    });
+    return [...statusSet].sort();
+  }, [streams, streamStatusMap]);
+
+  // ✅ Reset filter nếu trạng thái đang chọn không còn tồn tại
+  useEffect(() => {
+    if (statusFilter !== "ALL" && !availableStatuses.includes(statusFilter)) {
+      setStatusFilter("ALL");
+    }
+  }, [availableStatuses, statusFilter]);
+
+  // ✅ Filter streams theo trạng thái đã chọn
+  const filteredStreams = statusFilter === "ALL"
+    ? streams
+    : streams.filter((st) => {
+        const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
+        return status === statusFilter;
+      });
 
   const handleSaveStream = async (form) => {
     try {
@@ -297,11 +336,42 @@ const Stream = () => {
           <h2 className="card__title">Danh sách luồng của bạn</h2>
 
           <div className="card__headerRow">
-            {!loading && totalElements > 0 && (
-              <span className="header__total">
-                Tổng: <strong>{totalElements}</strong> luồng
-              </span>
-            )}
+            <div className="header__left">
+              {!loading && totalElements > 0 && (
+                <span className="header__total">
+                  Tổng: <strong>{filteredStreams.length}</strong>{statusFilter !== "ALL" ? ` / ${totalElements}` : ""} luồng
+                </span>
+              )}
+
+              {/* ✅ Dropdown filter trạng thái */}
+              <div className="status-filter" ref={filterRef}>
+                <button
+                  className={`status-filter__toggle ${statusFilter !== "ALL" ? "status-filter__toggle--active" : ""}`}
+                  onClick={() => setIsFilterOpen((prev) => !prev)}
+                >
+                  <span className="status-filter__icon">⏷</span>
+                  {statusFilter === "ALL" ? "Trạng thái" : statusFilter}
+                </button>
+
+                {isFilterOpen && (
+                  <div className="status-filter__menu">
+                    {["ALL", ...availableStatuses].map((opt) => (
+                      <button
+                        key={opt}
+                        className={`status-filter__item ${statusFilter === opt ? "status-filter__item--selected" : ""}`}
+                        onClick={() => {
+                          setStatusFilter(opt);
+                          setIsFilterOpen(false);
+                        }}
+                      >
+                        <span className={`status-filter__dot status-filter__dot--${opt.toLowerCase()}`} />
+                        {opt === "ALL" ? "Tất cả" : opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
             <div className="card__headerActions">
               <button className="btn btn--primary btn--lg" onClick={openAddModal}>
@@ -338,12 +408,16 @@ const Stream = () => {
                 <tr>
                   <td colSpan={7}>Đang tải...</td>
                 </tr>
-              ) : streams.length === 0 ? (
+              ) : filteredStreams.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>Không có luồng nào.</td>
+                  <td colSpan={7}>
+                    {statusFilter !== "ALL"
+                      ? `Không có luồng nào có trạng thái ${statusFilter}.`
+                      : "Không có luồng nào."}
+                  </td>
                 </tr>
               ) : (
-                streams.map((st, index) => {
+                filteredStreams.map((st, index) => {
                   const status = String(streamStatusMap[st.id] || "NONE").toUpperCase();
                   const lastError = streamErrorMap[st.id] || null;
 
