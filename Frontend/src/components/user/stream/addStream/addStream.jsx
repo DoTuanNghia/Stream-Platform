@@ -242,73 +242,81 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       return;
     }
 
-    // Bỏ dấu ngoặc kép ở 2 đầu nếu user paste path có kèm ""
-    const rawInput = (form.videoList || "").trim().replace(/^"|"$/g, "").trim();
+    // Bỏ ngoặc kép và tách theo dòng
+    const rawLines = (form.videoList || "")
+      .split(/\r?\n/)
+      .map(line => line.trim().replace(/^"|"$/g, "").trim())
+      .filter(line => line.length > 0);
 
-    if (!rawInput) {
+    if (rawLines.length === 0) {
       await onSave({ ...form, videoList: "" });
       onClose();
       return;
     }
 
-    if (isDownloadableInput(rawInput)) {
-      setIsDownloading(true);
-      setDownloadStatus("Đang chuẩn bị download...");
+    setIsDownloading(true);
+    setDownloadStatus("Đang kiểm tra danh sách video...");
 
-      try {
-        setDownloadStatus("Đang download video...");
-        const downloadResult = await processDownload(rawInput);
+    const finalPaths = [];
+    let hasError = false;
 
-        if (downloadResult.success) {
-          const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
-          setForm((prev) => ({ ...prev, videoList: videoPath }));
-
-          const formData = {
-            note: form.note,
-            keyLive: form.keyLive,
-            videoList: videoPath,
-            startTime: form.startTime, // "HH:mm"
-            startDate: form.startDate,
-            duration: form.duration,
-          };
-
-          await onSave(formData);
-
-          setDownloadStatus("Download thành công!");
-          setIsDownloading(false);
-          setTimeout(() => {
-            setDownloadStatus("");
-            onClose();
-          }, 8000);
-          return;
+    for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        
+        if (isDownloadableInput(line)) {
+            setDownloadStatus(`Đang tải video ${i + 1}/${rawLines.length}...`);
+            try {
+                const downloadResult = await processDownload(line);
+                if (downloadResult.success) {
+                    const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
+                    finalPaths.push(videoPath);
+                } else {
+                    setDownloadStatus(`Lỗi tải video thứ ${i + 1}!`);
+                    hasError = true;
+                    break;
+                }
+            } catch (error) {
+                console.error("Error during download:", error);
+                setDownloadStatus(`Có lỗi xảy ra ở video ${i + 1}: ${error.message}`);
+                hasError = true;
+                break;
+            }
         } else {
-          setDownloadStatus("Lỗi download!");
-          setIsDownloading(false);
-          return;
+            // Tên video thường hoặc path NAS
+            const isFullPath = /^[a-zA-Z]:\\/.test(line) || line.startsWith("\\\\") || line.startsWith("/");
+            if (isFullPath) {
+                finalPaths.push(line);
+            } else {
+                const filename = line.toLowerCase().endsWith(".mp4") ? line : `${line}.mp4`;
+                finalPaths.push(`${VIDEO_BASE_DIR}${filename}`);
+            }
         }
-      } catch (error) {
-        console.error("Error during download:", error);
-        setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
+    }
+
+    if (hasError) {
         setIsDownloading(false);
-        return;
-      }
+        return; // Dừng lại không lưu nếu có lỗi
     }
 
-    // Tên video thường
-    const isFullPath = /^[a-zA-Z]:\\/.test(rawInput);
-    if (isFullPath) {
-      await onSave({ ...form, videoList: rawInput });
-      onClose();
-      return;
-    }
+    setDownloadStatus("Xử lý thành công, đang lưu...");
+    
+    // Gộp tất cả đường dẫn bằng \n
+    const finalVideoList = finalPaths.join("\n");
+    setForm((prev) => ({ ...prev, videoList: finalVideoList }));
 
-    const filename = rawInput.toLowerCase().endsWith(".mp4") ? rawInput : `${rawInput}.mp4`;
-    const fullPath = `${VIDEO_BASE_DIR}${filename}`;
+    const formData = {
+      note: form.note,
+      keyLive: form.keyLive,
+      videoList: finalVideoList,
+      startTime: form.startTime, // "HH:mm"
+      startDate: form.startDate,
+      duration: form.duration,
+    };
 
-    await onSave({
-      ...form,
-      videoList: fullPath,
-    });
+    await onSave(formData);
+    
+    setDownloadStatus("");
+    setIsDownloading(false);
     onClose();
   };
 
@@ -346,14 +354,22 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           </div>
 
           <div className="modal__field">
-            <label>Tên video</label>
-            <input
-              type="text"
+            <label>Danh sách Video</label>
+            <textarea
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder='Tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4)'
+              placeholder='Nhập tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4).&#10;Mỗi link/đường dẫn một dòng để phát tuần tự.'
               disabled={isDownloading}
+              rows={4}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                resize: "vertical"
+              }}
             />
           </div>
 

@@ -40,9 +40,31 @@ public class FfmpegServiceImpl implements FfmpegService {
             throw new RuntimeException("Video path is empty.");
         }
 
-        // validate file local (không áp dụng với URL)
-        if (isLocalFile(videoPath) && !new File(videoPath).exists()) {
-            throw new RuntimeException("INPUT_NOT_FOUND: " + videoPath);
+        boolean isConcat = false;
+        String actualInput = videoPath;
+
+        String[] paths = videoPath.split("\\r?\\n");
+        if (paths.length > 1) {
+            isConcat = true;
+            String timestamp = new java.text.SimpleDateFormat("ddMMyy_HHmmss").format(new java.util.Date());
+            String concatFileName = "D:\\videos\\concat_" + streamKey + "_" + timestamp + ".txt";
+            try (java.io.PrintWriter writer = new java.io.PrintWriter(concatFileName, java.nio.charset.StandardCharsets.UTF_8)) {
+                for (String p : paths) {
+                    p = p.trim();
+                    if (!p.isEmpty()) {
+                        writer.println("file '" + p.replace("'", "'\\''") + "'");
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Cannot generate concat file: " + e.getMessage(), e);
+            }
+            actualInput = concatFileName;
+        } else {
+            actualInput = paths[0].trim();
+            // validate file local (không áp dụng với URL)
+            if (isLocalFile(actualInput) && !new java.io.File(actualInput).exists()) {
+                throw new RuntimeException("INPUT_NOT_FOUND: " + actualInput);
+            }
         }
 
         if (rtmpUrl == null || rtmpUrl.isBlank()) {
@@ -60,13 +82,13 @@ public class FfmpegServiceImpl implements FfmpegService {
 
         // 1) thử copy trước (nếu bật)
         if (preferCopy) {
-            boolean started = startCopyStream(videoPath, fullRtmp, streamKey);
+            boolean started = startCopyStream(actualInput, fullRtmp, streamKey, isConcat);
             if (started)
                 return;
         }
 
         // 2) fallback encode (nếu encode fail -> throw)
-        startEncodeStream(videoPath, fullRtmp, streamKey);
+        startEncodeStream(actualInput, fullRtmp, streamKey, isConcat);
     }
 
     /**
@@ -74,7 +96,7 @@ public class FfmpegServiceImpl implements FfmpegService {
      * Return true nếu process start OK; nếu fail thì return false để fallback
      * encode.
      */
-    private boolean startCopyStream(String videoPath, String fullRtmp, String streamKey) {
+    private boolean startCopyStream(String videoPath, String fullRtmp, String streamKey, boolean isConcat) {
         try {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
@@ -83,6 +105,14 @@ public class FfmpegServiceImpl implements FfmpegService {
             cmd.add("-re");
             cmd.add("-stream_loop");
             cmd.add("-1");
+
+            if (isConcat) {
+                cmd.add("-f");
+                cmd.add("concat");
+                cmd.add("-safe");
+                cmd.add("0");
+            }
+
             cmd.add("-i");
             cmd.add(videoPath);
 
@@ -148,7 +178,7 @@ public class FfmpegServiceImpl implements FfmpegService {
      * Encode fallback: 720p30, superfast, VBV.
      * Nếu fail -> throw để session chuyển ERROR.
      */
-    private void startEncodeStream(String videoPath, String fullRtmp, String streamKey) {
+    private void startEncodeStream(String videoPath, String fullRtmp, String streamKey, boolean isConcat) {
         try {
             List<String> cmd = new ArrayList<>();
             cmd.add(ffmpegPath);
@@ -157,6 +187,14 @@ public class FfmpegServiceImpl implements FfmpegService {
             cmd.add("-re");
             cmd.add("-stream_loop");
             cmd.add("-1");
+
+            if (isConcat) {
+                cmd.add("-f");
+                cmd.add("concat");
+                cmd.add("-safe");
+                cmd.add("0");
+            }
+
             cmd.add("-i");
             cmd.add(videoPath);
 
