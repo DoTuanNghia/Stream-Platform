@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.stream.backend.entity.FfmpegStat;
 import com.stream.backend.service.FfmpegService;
+import jakarta.annotation.PreDestroy;
 
 @Service
 public class FfmpegServiceImpl implements FfmpegService {
@@ -710,5 +711,19 @@ public class FfmpegServiceImpl implements FfmpegService {
         } catch (Exception e) {
             throw new RuntimeException("FFMPEG_START_CHECK_ERROR: " + e.getMessage(), e);
         }
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        System.out.println("[FFMPEG-CLEANUP] Spring Boot context is closing/reloading. Force killing all active FFmpeg processes...");
+        for (Map.Entry<String, Process> entry : processMap.entrySet()) {
+            Process p = entry.getValue();
+            if (p != null && p.isAlive()) {
+                System.out.println("[FFMPEG-CLEANUP] Killing FFmpeg for streamKey: " + entry.getKey());
+                p.destroyForcibly();
+            }
+        }
+        processMap.clear();
+        statMap.clear();
     }
 }
