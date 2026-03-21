@@ -133,11 +133,13 @@ export default function AdminStreams() {
         stoppedText = formatLocalDateTime(x?.stoppedAt);
       }
 
-      // Lấy tên video từ videoList, bỏ đường dẫn và đuôi .mp4
+      // Lấy tên video từ videoList, xử lý nhiều dòng
       const rawVideoList = x?.stream?.videoList ?? "";
-      const videoBaseName = rawVideoList
-        ? rawVideoList.split(/[\\/]/).pop().replace(/\.mp4$/i, "")
-        : "-";
+      let videoNames = [];
+      if (rawVideoList) {
+        const lines = rawVideoList.split(/\r?\n/).filter(line => line.trim() !== "");
+        videoNames = lines.map(line => line.split(/[\\/]/).pop().replace(/\.mp4$/i, ""));
+      }
 
       return {
         ...x,
@@ -145,7 +147,7 @@ export default function AdminStreams() {
         streamKey: x?.stream?.keyStream ?? "n/a",
         streamName: x?.stream?.name ?? x?.stream?.title ?? "n/a",
         ownerName: x?.stream?.ownerName ?? "n/a",
-        videoName: videoBaseName,
+        videoNames: videoNames,
         specText: x?.specification ?? "n/a",
         startedText,
         stoppedText,
@@ -267,7 +269,17 @@ export default function AdminStreams() {
                         <td className="admin-streams__name">{m.streamName}</td>
                         <td className="admin-streams__owner">{m.ownerName}</td>
                         <td className="mono">{m.streamKey}</td>
-                        <td>{m.videoName}</td>
+                        <td>
+                          {m.videoNames && m.videoNames.length > 1 ? (
+                            <select className="admin-streams__video-select" title="Danh sách video đang phát tuần tự">
+                              {m.videoNames.map((v, i) => (
+                                <option key={i} value={v}>{v}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            m.videoNames && m.videoNames.length === 1 ? m.videoNames[0] : "-"
+                          )}
+                        </td>
                         <td className="col-status">
                           <span className={"badge badge--" + m.status.toLowerCase()}>
                             {m.status}

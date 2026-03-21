@@ -51,6 +51,32 @@
     }
   }
 
+  &__video-select {
+    max-width: 200px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #1f2937;
+    background: #0b1220;
+    color: #cbd5f5;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+
+    &:hover {
+      border-color: #374151;
+    }
+
+    &:focus {
+      border-color: #3b82f6;
+    }
+
+    option {
+      background: #0b1220;
+      color: #cbd5f5;
+    }
+  }
+
   &__tabs {
     display: flex;
     gap: 8px;

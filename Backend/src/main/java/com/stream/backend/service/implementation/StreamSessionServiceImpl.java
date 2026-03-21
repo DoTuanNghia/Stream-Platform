@@ -200,7 +200,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             return session;
         }
 
-        String videoSource = resolveFirstVideoSource(stream);
+        String videoSource = resolveVideoSources(stream);
 
         String lastMsg = "FFMPEG_START_FAILED";
         for (int attempt = 1; attempt <= FFMPEG_MAX_RETRY; attempt++) {
@@ -261,7 +261,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             throw new RuntimeException("Stream key trống");
         }
 
-        String videoSource = resolveFirstVideoSource(stream);
+        String videoSource = resolveVideoSources(stream);
 
         String lastMsg = "FFMPEG_START_FAILED";
         for (int attempt = 1; attempt <= FFMPEG_MAX_RETRY; attempt++) {
@@ -336,17 +336,15 @@ public class StreamSessionServiceImpl implements StreamSessionService {
         streamSessionRepository.save(session);
     }
 
-    private String resolveFirstVideoSource(Stream stream) {
-        String videoSource = null;
+    private String resolveVideoSources(Stream stream) {
         if (stream.getVideoList() != null && !stream.getVideoList().isBlank()) {
-            videoSource = Arrays.stream(stream.getVideoList().split("\\r?\\n"))
+            return Arrays.stream(stream.getVideoList().split("\\r?\\n"))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .map(this::normalizeVideoSource)
-                    .findFirst()
-                    .orElse(null);
+                    .collect(java.util.stream.Collectors.joining("\n"));
         }
-        return videoSource;
+        return null;
     }
 
     @Override
@@ -417,6 +415,28 @@ public class StreamSessionServiceImpl implements StreamSessionService {
                 } else {
                     log.info("[DELETE-VIDEO] Skipping URL (not local file): {}", videoPath);
                 }
+            }
+        }
+
+        // --- XÓA FILE CONCAT .TXT ---
+        String streamKey = managedStream.getKeyStream();
+        if (streamKey != null && !streamKey.isBlank()) {
+            try {
+                File dir = new File("D:\\videos\\");
+                if (dir.exists() && dir.isDirectory()) {
+                    File[] concatFiles = dir.listFiles((d, name) -> name.startsWith("concat_" + streamKey + "_") && name.endsWith(".txt"));
+                    if (concatFiles != null) {
+                        for (File f : concatFiles) {
+                            if (f.delete()) {
+                                log.info("[DELETE-VIDEO] Deleted concat file: {}", f.getAbsolutePath());
+                            } else {
+                                log.warn("[DELETE-VIDEO] Failed to delete concat file: {}", f.getAbsolutePath());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("[DELETE-VIDEO] Error deleting concat files for streamKey={}", streamKey, e);
             }
         }
 
@@ -507,7 +527,7 @@ public class StreamSessionServiceImpl implements StreamSessionService {
             throw new RuntimeException("Stream key trống cho sessionId=" + session.getId());
         }
 
-        String videoSource = resolveFirstVideoSource(stream);
+        String videoSource = resolveVideoSources(stream);
         if (videoSource == null || videoSource.isBlank()) {
             throw new RuntimeException("Video source trống cho sessionId=" + session.getId());
         }

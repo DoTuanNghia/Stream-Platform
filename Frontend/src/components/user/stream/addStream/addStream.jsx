@@ -1,6 +1,7 @@
-// src/components/stream/addStream/addStream.jsx
 import React, { useEffect, useRef, useState } from "react";
 import "./addStream.scss";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import {
   isDownloadableInput,
   processDownload,
@@ -16,6 +17,46 @@ const emptyForm = {
   streamAfter: 0,
   duration: 0,
 };
+
+const CustomDateInput = React.forwardRef(({ value, onChange, onClick, onKeyDown, onBlur, placeholder, disabled, className }, ref) => (
+  <div style={{ display: "flex", flex: 1, position: "relative", width: "100%" }}>
+    <input
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={className || "modal__datepicker-input"}
+      style={{ paddingRight: "34px", width: "100%", boxSizing: "border-box" }}
+    />
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title="Chọn ngày từ lịch"
+      style={{
+        position: "absolute",
+        right: "6px",
+        top: "50%",
+        transform: "translateY(-50%)",
+        background: "none",
+        border: "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        color: "#9ca3af",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "4px"
+      }}
+    >
+      <svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+        <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z" />
+      </svg>
+    </button>
+  </div>
+));
 
 const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
   const [form, setForm] = useState(emptyForm);
@@ -83,9 +124,17 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
 
     if (initialData) {
       const time = initialData.timeStart ? new Date(initialData.timeStart) : null;
-      const initDate = time ? time.toISOString().slice(0, 10) : "";
-      const initTime24 = time ? time.toTimeString().slice(0, 5) : ""; // "HH:mm"
-      const initDigits = initTime24 ? initTime24.replace(":", "") : "";
+      let initDate = "";
+      let initTime24 = "";
+      let initDigits = "";
+      if (time && !Number.isNaN(time.getTime())) {
+        const yyyy = time.getFullYear();
+        const mm = String(time.getMonth() + 1).padStart(2, "0");
+        const dd = String(time.getDate()).padStart(2, "0");
+        initDate = `${yyyy}-${mm}-${dd}`;
+        initTime24 = time.toTimeString().slice(0, 5); // "HH:mm"
+        initDigits = initTime24.replace(":", "");
+      }
 
       setForm({
         note: initialData.name || "",
@@ -193,74 +242,94 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
       return;
     }
 
-    // Bỏ dấu ngoặc kép ở 2 đầu nếu user paste path có kèm ""
-    const rawInput = (form.videoList || "").trim().replace(/^"|"$/g, "").trim();
+    // Bỏ ngoặc kép và tách theo dòng
+    const rawLines = (form.videoList || "")
+      .split(/\r?\n/)
+      .map(line => line.trim().replace(/^"|"$/g, "").trim())
+      .filter(line => line.length > 0);
 
-    if (!rawInput) {
+    if (rawLines.length === 0) {
       await onSave({ ...form, videoList: "" });
       onClose();
       return;
     }
 
-    if (isDownloadableInput(rawInput)) {
+    // Kiểm tra có dòng nào cần download không
+    const hasDownloadable = rawLines.some(line => isDownloadableInput(line));
+
+    if (hasDownloadable) {
       setIsDownloading(true);
       setDownloadStatus("Đang chuẩn bị download...");
+    }
 
-      try {
-        setDownloadStatus("Đang download video...");
-        const downloadResult = await processDownload(rawInput);
+    const finalPaths = [];
+    let hasError = false;
 
-        if (downloadResult.success) {
-          const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
-          setForm((prev) => ({ ...prev, videoList: videoPath }));
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
 
-          const formData = {
-            note: form.note,
-            keyLive: form.keyLive,
-            videoList: videoPath,
-            startTime: form.startTime, // "HH:mm"
-            startDate: form.startDate,
-            duration: form.duration,
-          };
-
-          await onSave(formData);
-
-          setDownloadStatus("Download thành công!");
-          setIsDownloading(false);
-          setTimeout(() => {
-            setDownloadStatus("");
-            onClose();
-          }, 8000);
-          return;
-        } else {
-          setDownloadStatus("Lỗi download!");
-          setIsDownloading(false);
-          return;
+      if (isDownloadableInput(line)) {
+        setDownloadStatus(`Đang tải video ${i + 1}/${rawLines.length}...`);
+        try {
+          const downloadResult = await processDownload(line);
+          if (downloadResult.success) {
+            const videoPath = `${VIDEO_BASE_DIR}${downloadResult.fileName}`;
+            finalPaths.push(videoPath);
+          } else {
+            setDownloadStatus(`Lỗi download!`);
+            hasError = true;
+            break;
+          }
+        } catch (error) {
+          console.error("Error during download:", error);
+          setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
+          hasError = true;
+          break;
         }
-      } catch (error) {
-        console.error("Error during download:", error);
-        setDownloadStatus(`Có lỗi xảy ra: ${error.message}`);
-        setIsDownloading(false);
-        return;
+      } else {
+        // Tên video thường hoặc path NAS
+        const isFullPath = /^[a-zA-Z]:\\/.test(line) || line.startsWith("\\\\") || line.startsWith("/");
+        if (isFullPath) {
+          finalPaths.push(line);
+        } else {
+          const filename = line.toLowerCase().endsWith(".mp4") ? line : `${line}.mp4`;
+          finalPaths.push(`${VIDEO_BASE_DIR}${filename}`);
+        }
       }
     }
 
-    // Tên video thường
-    const isFullPath = /^[a-zA-Z]:\\/.test(rawInput);
-    if (isFullPath) {
-      await onSave({ ...form, videoList: rawInput });
-      onClose();
-      return;
+    if (hasError) {
+      setIsDownloading(false);
+      return; // Dừng lại, giữ modal mở để user thấy lỗi
     }
 
-    const filename = rawInput.toLowerCase().endsWith(".mp4") ? rawInput : `${rawInput}.mp4`;
-    const fullPath = `${VIDEO_BASE_DIR}${filename}`;
+    // Gộp tất cả đường dẫn bằng \n
+    const finalVideoList = finalPaths.join("\n");
+    setForm((prev) => ({ ...prev, videoList: finalVideoList }));
 
-    await onSave({
-      ...form,
-      videoList: fullPath,
-    });
-    onClose();
+    const formData = {
+      note: form.note,
+      keyLive: form.keyLive,
+      videoList: finalVideoList,
+      startTime: form.startTime,
+      startDate: form.startDate,
+      duration: form.duration,
+    };
+
+    await onSave(formData);
+
+    if (hasDownloadable) {
+      // Có download → hiện thông báo thành công rồi mới đóng
+      setDownloadStatus("Download thành công!");
+      setIsDownloading(false);
+      setTimeout(() => {
+        setDownloadStatus("");
+        onClose();
+      }, 8000);
+    } else {
+      // Chỉ local path → đóng luôn
+      onClose();
+    }
   };
 
   return (
@@ -297,14 +366,23 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
           </div>
 
           <div className="modal__field">
-            <label>Tên video</label>
-            <input
-              type="text"
+            <label>Danh sách Video</label>
+            <textarea
               name="videoList"
               value={form.videoList}
               onChange={handleChange}
-              placeholder='Tên video, URL Google Drive, hoặc đường dẫn NAS (vd: \\NAS\folder\file.mp4)'
+              placeholder='Nhập tên video, URL Google Drive.&#10;Mỗi link/đường dẫn một dòng để phát tuần tự.'
               disabled={isDownloading}
+              rows={2}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                resize: "vertical",
+                boxSizing: "border-box"
+              }}
             />
           </div>
 
@@ -327,12 +405,27 @@ const AddStream = ({ isOpen, onClose, onSave, initialData }) => {
                 title="Gõ 4 số HHMM. Ví dụ: 2122 => 21:22."
               />
 
-              <input
-                type="date"
-                name="startDate"
-                value={form.startDate}
-                onChange={handleChange}
+              <DatePicker
+                selected={form.startDate && !Number.isNaN(new Date(form.startDate).getTime()) ? new Date(form.startDate) : null}
+                onChange={(date) => {
+                  if (!date) {
+                    setForm((prev) => ({ ...prev, startDate: "" }));
+                    return;
+                  }
+                  if (date instanceof Date && !Number.isNaN(date.getTime())) {
+                    const yyyy = date.getFullYear();
+                    const mm = String(date.getMonth() + 1).padStart(2, "0");
+                    const dd = String(date.getDate()).padStart(2, "0");
+                    setForm((prev) => ({ ...prev, startDate: `${yyyy}-${mm}-${dd}` }));
+                  }
+                }}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="dd/mm/yyyy"
                 disabled={isDownloading || isLiveEdit}
+                className="modal__datepicker-input"
+                customInput={<CustomDateInput />}
+                preventOpenOnFocus
+                strictParsing
               />
             </div>
           </div>
